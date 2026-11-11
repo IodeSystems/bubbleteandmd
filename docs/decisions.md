@@ -68,3 +68,19 @@
   `\n`; a src that extends it scans only the new text. Why exact:
   Sanitize(a+b) == Sanitize(a)+Sanitize(b) when a ends in `\n`
   (FuzzSanitizeSplit).
+- 2026-11-11 (perf): DirectiveRenderer rewrites the language of each top-level
+  fence to `text` when it is empty or chroma has no lexer for it
+  (fencelang.go; per-name cache, one `lexers.Get` per name per process).
+  Why: glamour v2.0.1 calls `quick.Highlight`: `lexers.Get` (a miss scans
+  every lexer's file globs, 8-18 ms per fence per render, also for an empty
+  name), then `lexers.Analyse` (guesses from content), then the plaintext
+  fallback. `text` is a registered alias: a map hit. Change: such fences no
+  longer get content-guessed colours (Carl accepted); lines and text are the
+  same (tested). Other info-string parts (`title="..."`) stay; `math`,
+  `mermaid` become `text`; `tree` and titled code are read as forms first,
+  and a titled fence renders through the same path. Only a block that
+  starts with a fence (blocks.Split) is rewritten, on its opening line: a
+  first line-scan version broke TestRendererPlain (fuzz-1; a fence closer in
+  a list read as an opener). Fences nested in lists
+  or quotes (not top-level) keep the slow path. Raw `*glamour.TermRenderer`
+  users do not get this.
