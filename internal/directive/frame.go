@@ -1,11 +1,10 @@
 package directive
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
 
 	"charm.land/glamour/v2/ansi"
+	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi"
 )
 
@@ -17,8 +16,10 @@ type Style struct {
 }
 
 // StyleOf derives the frame Style from a glamour style. The pad cell is a
-// space in the document colour: `ESC[38;5;Nm ESC[m` for an index, `38;2;r;g;b`
-// for hex, a bare " " when plain or when the document has no colour.
+// space in the document colour, written as glamour writes it (ansi/margin.go
+// renderText: x/ansi Style, lipgloss.Color): "0".."15" as basic 3x/9x
+// codes, other indexes as 38;5;N, hex (short or long) as 38;2;r;g;b. A bare
+// " " when plain or when the document has no colour.
 func StyleOf(s ansi.StyleConfig, plain bool) Style {
 	st := Style{Cell: " "}
 	if s.Document.Margin != nil {
@@ -27,15 +28,7 @@ func StyleOf(s ansi.StyleConfig, plain bool) Style {
 	if plain || s.Document.Color == nil {
 		return st
 	}
-	c := *s.Document.Color
-	if n, ok := atoiSmall(c); ok {
-		st.Cell = "\x1b[38;5;" + strconv.Itoa(n) + "m \x1b[m"
-	} else if len(c) == 7 && c[0] == '#' {
-		var r, g, b uint8
-		if _, err := fmt.Sscanf(c[1:], "%02x%02x%02x", &r, &g, &b); err == nil {
-			st.Cell = fmt.Sprintf("\x1b[38;2;%d;%d;%dm \x1b[m", r, g, b)
-		}
-	}
+	st.Cell = xansi.Style{}.ForegroundColor(lipgloss.Color(*s.Document.Color)).Styled(" ")
 	return st
 }
 

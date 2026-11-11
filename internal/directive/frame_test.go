@@ -103,3 +103,36 @@ func TestFrameNegativeWidth(t *testing.T) {
 		t.Errorf("Frame(width -1) = %q", got)
 	}
 }
+
+// TestStyleOfCustomColour: the pad cell is the bytes glamour writes for the
+// document colour: basic 3x/9x codes for "0".."15", hex short or long.
+func TestStyleOfCustomColour(t *testing.T) {
+	for _, c := range []string{"3", "8", "11", "15", "16", "252", "#fff", "#123456"} {
+		cfg := styles.DarkStyleConfig
+		col := c
+		cfg.Document.Color = &col
+		fs := StyleOf(cfg, false)
+		r, err := glamour.NewTermRenderer(glamour.WithStyles(cfg), glamour.WithWordWrap(40))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := glamourPiece(t, r, "short\n", true)
+		cell := fs.Cell
+		if !strings.HasSuffix(strings.TrimSuffix(want, "\n"), cell+cell) {
+			t.Errorf("colour %q: cell %q, glamour line %q", c, cell, want)
+		}
+	}
+}
+
+// TestThemeDarkLight: a document colour of 8 (bright black, grey) is dark
+// text: a light style.
+func TestThemeDarkLight(t *testing.T) {
+	for c, dark := range map[string]bool{"7": true, "8": false, "15": true, "0": false, "232": false, "234": false, "252": true, "#fff": true, "#123456": false} {
+		cfg := styles.DarkStyleConfig
+		col := c
+		cfg.Document.Color = &col
+		if got := isDarkStyle(cfg); got != dark {
+			t.Errorf("colour %q: isDarkStyle = %v, want %v", c, got, dark)
+		}
+	}
+}

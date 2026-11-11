@@ -48,8 +48,7 @@ var calloutHue = map[string][2]uint8{
 }
 
 // ThemeFrom derives a Theme from a glamour style. plain selects notty.
-// Dark or light is read from the style: a document foreground index of 232 or
-// above 244 is light text on dark; otherwise light-background style.
+// Dark or light is read from the style (isDarkStyle).
 func ThemeFrom(s ansi.StyleConfig, plain bool) Theme {
 	th := Theme{Plain: plain, Quote: "│ ", Callout: map[string]lipgloss.Style{}}
 	if s.BlockQuote.IndentToken != nil && *s.BlockQuote.IndentToken != "" {
@@ -82,7 +81,8 @@ func ThemeFrom(s ansi.StyleConfig, plain bool) Theme {
 	return th
 }
 
-// isDarkStyle: dark styles use a light document foreground (index >= 244).
+// isDarkStyle: dark styles use a light document foreground: index 7, 9..15
+// (8 is bright black, grey) or 244 and above, or hex brighter than mid grey.
 func isDarkStyle(s ansi.StyleConfig) bool {
 	c := s.Document.Color
 	if c == nil {
@@ -95,7 +95,7 @@ func isDarkStyle(s ansi.StyleConfig) bool {
 	if !ok {
 		return !strings.HasPrefix(*c, "#") || hexLight(*c)
 	}
-	return n >= 244 || (n >= 7 && n <= 15)
+	return n >= 244 || n == 7 || (n >= 9 && n <= 15)
 }
 
 func hexLight(h string) bool {
