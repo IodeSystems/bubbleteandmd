@@ -53,13 +53,21 @@ scrolled up); unconstrained (height 0) → render all, scroll keys return false,
   Dep: bubbletea v2.1.0 (MVS: ultraviolet, go-runewidth 0.27→0.30, terminfo v1.0.0; dun already higher). No NormalizeKey (reason in decisions.md).
   Tests (interact_test.go): stops per kind, layout == Stream at every frame + focus keeps widths (dark/light/notty, w36/76), stream order == IDs order
   (stateDocs, dark/notty), actions per form, consumed/fallthrough, plain Renderer.
-- ◻ L5b viewport mode · L6 audit · L7 docs
-  **next (L5b)**: height > 0 → Doc owns scroll (↑/↓ PgUp/PgDn actions, Focused() line scrolled into view, follow bottom). Seam: Stops/Focused lines are in
-  the last output; ↑/↓ are not in the KeyMap yet. dun adoption: NewStream → NewDoc, Focus when its answer is entered (like insideWide).
+- ✅ L5b viewport (viewport.go; decisions.md 2026-11-11 L5b): `SetHeight/Height/Offset/Lines/View`; actions scroll.up/down, page.up/down,
+  scroll.top/bottom (↑/↓ pgup/pgdown home/end in DefaultKeyMap). h>0: Frame/Final/View = lines [Offset, Offset+h); scroll consumed with or without
+  focus and at edges; follow bottom; focus change → stop into view (tall: top); tree cursor → row into view. h=0 unchanged.
+  Tests (viewport_test.go): window == slice of Stream output at every frame (dark/notty, h 1/5/12), follow vs scrolled-up (view bytes fixed), focus
+  into view per stop (h 2/4, 3 styles), keys per edge, SetHeight.
+  **risks (L5b)**: Offset is stale between Focus/an action and the next render (reveal applies at render); scrolled-up view over the healed tail
+  can change bytes (offset still fixed); toggle/tab switch do not scroll (focused header can stay out of view only if it already was).
+  **optional extensions**: scroll indicator (host can draw from Offset/Lines/Height); scroll inside a tall focused stop on ↑/↓.
+- ◻ L6 audit · L7 docs
+  dun adoption: NewStream → NewDoc, Focus when its answer is entered (like insideWide); viewport mode only if dun hands the pane to the Doc.
   **blocking decision (Carl, open 2026-11-11)**: whether/how dun's input handling splits out into a shared lib — L5 built only what Doc needs.
   **risks (L5)**: Stops are stale between a consumed key and the next render (host must render after true); notty focus on a tree whose cursor is a
   depth-0 file row, and on stacked tabs, has no cue (Carl's notty rule); details stop covers the title only, tabs stop covers all drawn panels;
   ←/→ wrap (not return false at an edge) — assumed. Doc with no stops yet: Focus false, host must call it again when forms arrive.
+- `go test -short -timeout 60m ./...` with L5b: all ok (exit 0), root 588 s, vet clean.
 - `go test -short -timeout 60m ./...` at 3e6517b (L5): all ok, root 426 s, vet clean.
 - `go test -short ./...` at 1d9bacc: all ok (root 483 s with -timeout 60m; default 10m timed out under load ~50, Render vs RenderState cost equal on forms-20k).
 - **risks (L4)**: full (non-short) TestInvariant/TestRendererInvariant not run on dev box (run on M1). With a StateRenderer

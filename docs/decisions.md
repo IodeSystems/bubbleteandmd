@@ -200,3 +200,26 @@
   NormalizeKey: dun's folds shift+enter / SS3 M into ctrl+j (composer
   newline), which means nothing to a Doc, and a real keypad enter arrives
   as enter.
+- 2026-11-11 (L5b, Carl): `Doc.SetHeight(h)`. h > 0: the Doc owns the
+  scroll; Frame, Final and `View()` return lines [Offset, Offset+h) of the
+  whole output (a substring, so fewer lines when the output is shorter;
+  the host pads). h = 0 (default): today's behaviour, the scroll actions
+  return false and the host scrolls with Stops. Actions scroll.up/down
+  (↑/↓), page.up/down (pgup/pgdown, h lines), scroll.top/bottom
+  (home/end) in DefaultKeyMap. Follow: at each render a view that was at
+  the bottom (Offset = Lines-h, or the output fits) goes to the new
+  bottom; any other view keeps its Offset, so nothing in it moves as the
+  reply grows below; a shrink clamps. Focus change (Focus, FocusLast,
+  focus.next/prev) scrolls the focused stop into view at the next render,
+  the least that shows it; a stop taller than h shows its top line. A tree
+  cursor move (←/→) scrolls the cursor row into view. Toggle and tab switch
+  do not scroll (clamp only). Consumed: with h > 0 a scroll action is
+  consumed with or without focus (a Doc with no forms has no focus and
+  must still scroll), and at the top/bottom edge too: the vertical axis is
+  the Doc's in a viewport, and leaving is tab/shift+tab/esc. dun's
+  insideWideKeys lets ↑/↓ leave and fall through because there the axis it
+  owns is horizontal; its ← at the left edge leaves but is consumed. A
+  scroll changes View with no render. Stop and Mark lines stay counted in
+  the whole output. SetHeight keeps a view at the bottom at the bottom;
+  from h = 0 the view starts at the top. Width is the host's (new Renderer
+  and Doc). Reset keeps height and Offset.
