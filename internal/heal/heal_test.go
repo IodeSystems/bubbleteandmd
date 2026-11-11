@@ -316,5 +316,15 @@ func TestTabBeforeFence(t *testing.T) {
 		}
 	}
 	run(t, "up to three spaces before ``` is a fence",
-		pair{"   ```\ncode", "   ```\ncode\n```"})
+		pair{"   ```\ncode", "   ```\ncode\n   ```"})
+}
+
+// TestFenceCloserIndent: the closer takes the opener's indent. In a list
+// item a closer at column 0 ends the item and opens an empty fence, so the
+// healed frame would draw a row the closed fence does not. Not in the TS.
+func TestFenceCloserIndent(t *testing.T) {
+	run(t, "closer at the opener's indent",
+		pair{"- a\n\n  ```sh\n  code\n", "- a\n\n  ```sh\n  code\n  ```"},
+		pair{"- a\n\n  ~~~~\n  code", "- a\n\n  ~~~~\n  code\n  ~~~~"},
+		pair{"```\ncode", "```\ncode\n```"})
 }

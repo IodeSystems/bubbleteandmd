@@ -40,12 +40,14 @@ func Close(text string) string {
 	}
 
 	// Inside an unterminated fence: close it and skip inline fixes, since everything after the
-	// opener is code.
+	// opener is code. The closer takes the opener's indent: in a list item, a closer at column 0
+	// is outside the item, so it ends the item and opens a new empty fence, one row more than
+	// the fence's own closing line draws. The TS closes at column 0.
 	if f := openFence(text); f != nil {
 		if strings.HasSuffix(text, "\n") {
-			return text + f.marker
+			return text + f.indent + f.marker
 		}
-		return text + "\n" + f.marker
+		return text + "\n" + f.indent + f.marker
 	}
 
 	// A half-typed table row, a callout marker still being typed and a form marker with no

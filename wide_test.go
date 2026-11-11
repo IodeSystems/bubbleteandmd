@@ -339,42 +339,28 @@ func TestWideInvariant(t *testing.T) {
 // does not take rows away. Wide blocks do not wrap, so a growing code line
 // or table row adds no row and takes none away. Checked on the wide
 // documents at every frame prefix (and every line prefix without -short).
-//
-// Allowed, as dun allows rows it did not add: a shrink the same Stream with
-// wide blocks off has at the same prefix (heal's, not wide blocks': a fence
-// in a list item closed by heal draws one row more than the closed fence).
 func TestWideNoShrink(t *testing.T) {
 	ps := []pattern{{"frame", corpus.FramePrefixes}}
 	if !testing.Short() {
 		ps = append(ps, pattern{"line", corpus.LinePrefixes})
 	}
-	allowed := 0
 	for _, style := range []string{"dark", "notty"} {
 		for _, w := range []int{40, 78, 98} {
 			for _, c := range wideDocs() {
 				for _, pat := range ps {
 					s := NewStream(newWideRenderer(t, style, w, w), "k", NewCache(256))
-					off := NewStream(newTestRenderer(t, style, w), "k", NewCache(256))
-					last, lastOff, lastP := 0, 0, ""
+					last, lastP := 0, ""
 					for _, p := range pat.prefixes(c.text) {
 						out, err := s.Frame(p)
 						if err != nil {
 							t.Fatal(err)
 						}
-						o, err := off.Frame(p)
-						if err != nil {
-							t.Fatal(err)
-						}
-						h, hOff := strings.Count(out, "\n"), strings.Count(o, "\n")
+						h := strings.Count(out, "\n")
 						if h < last {
-							if hOff < lastOff {
-								allowed++
-							} else {
-								t.Errorf("%s/w%d/%s/%s: height %d → %d at prefix len %d (wide off: %d → %d):\n%q\n→ %q", style, w, c.name, pat.name, last, h, len(p), lastOff, hOff, tailOf(lastP), tailOf(p))
-								break
-							}
+							t.Errorf("%s/w%d/%s/%s: height %d → %d at prefix len %d:\n%q\n→ %q", style, w, c.name, pat.name, last, h, len(p), tailOf(lastP), tailOf(p))
+							break
 						}
-						last, lastOff, lastP = h, hOff, p
+						last, lastP = h, p
 					}
 					out, err := s.Final(c.text)
 					if err != nil {
@@ -387,7 +373,6 @@ func TestWideNoShrink(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d shrinks allowed (wide off shrinks at the same prefix)", allowed)
 }
 
 // TestWideFastPaths: a wide table in the tail grows from cached rows, and

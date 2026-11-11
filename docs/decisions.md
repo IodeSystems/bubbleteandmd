@@ -56,6 +56,10 @@
   heal's other CRLF limits stay as in the TS; Stream turns `\r\n` into
   `\n` first. Still open: heal's inline fixes apply in indented code (a
   `` \t``` `` line gets a closing backtick while it streams).
+- 2026-11-11: heal closes a fence at the opener's indent, not column 0 as
+  the TS does. Why: in a list item a column-0 closer ends the item and opens
+  an empty fence, one row more than the real closer draws, so the frame
+  shrank when the closing line arrived.
 - 2026-11-11 (N4): the tail is the last block, not the last two. The block
   before the last is memoized per Stream by (source, first), not put in the
   shared Cache (the splitter can still reopen it: `[!CONS]` joins `[!PROS]`;

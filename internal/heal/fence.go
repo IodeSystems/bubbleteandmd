@@ -7,6 +7,7 @@ import "strings"
 
 type fence struct {
 	marker    string
+	indent    string // the opener's leading spaces
 	bodyStart int
 }
 
@@ -40,7 +41,7 @@ func step(open *fence, line string, lineEnd, textLength int) *fence {
 		if run[0] == '`' && strings.Contains(rest, "`") {
 			return nil
 		}
-		return &fence{marker: run, bodyStart: min(lineEnd, textLength)}
+		return &fence{marker: run, indent: line[:len(line)-len(strings.TrimLeft(line, " "))], bodyStart: min(lineEnd, textLength)}
 	}
 	if run[0] == open.marker[0] && len(run) >= len(open.marker) && trimJS(rest) == "" {
 		return nil
