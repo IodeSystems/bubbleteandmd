@@ -54,8 +54,9 @@ func (c *Cache) store(k cacheKey, v string) {
 
 // Stream renders one document that grows at its end. Blocks before the
 // last two are rendered once and cached; the last two (the tail) are
-// rendered on every call. Frame heals the tail; Final does not. The result
-// equals r.Render of the whole (healed, for Frame) text.
+// rendered on every call. Both first remove terminal controls (Sanitize).
+// Frame heals the tail; Final does not. The result equals r.Render of the
+// whole sanitized (and healed, for Frame) text.
 //
 // A Stream is not safe for concurrent use.
 type Stream struct {
@@ -81,7 +82,7 @@ func NewStream(r Renderer, key string, c *Cache) *Stream {
 // (heal.Close), so half-written syntax does not show raw.
 func (s *Stream) Frame(src string) (string, error) { return s.render(src, true) }
 
-// Final renders src as written, with no healing.
+// Final renders src as written, with no healing; only Sanitize applies.
 func (s *Stream) Final(src string) (string, error) { return s.render(src, false) }
 
 func (s *Stream) render(src string, healed bool) (string, error) {
@@ -95,6 +96,8 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		}
 		s.ready = true
 	}
+	// Before split, heal and cache, so all three see clean text.
+	src = Sanitize(src)
 	if s.seen != nil {
 		s.seen(src)
 	}

@@ -140,21 +140,24 @@ func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, 
 	cur := ""
 	c := NewCache(256)
 	c.put = func(source string) {
-		if !isStableSource(cur, source) {
-			t.Errorf("prefix len %d: cache stores %q, not a stable block of the raw prefix", len(cur), source)
+		if !isStableSource(Sanitize(cur), source) {
+			t.Errorf("prefix len %d: cache stores %q, not a stable block of the sanitized prefix", len(cur), source)
 		}
 	}
 	s := NewStream(r, "k", c)
 	s.seen = func(src string) {
-		if src != cur {
-			t.Errorf("prefix len %d: splitter sees text that is not the raw prefix", len(cur))
+		if src != Sanitize(cur) {
+			t.Errorf("prefix len %d: splitter sees text that is not the sanitized prefix", len(cur))
 		}
 	}
-	for _, p := range prefixes {
-		cur = p
-		if !strings.HasPrefix(text, p) {
-			t.Fatalf("prefix len %d is not a prefix", len(p))
+	for _, raw := range prefixes {
+		cur = raw
+		if !strings.HasPrefix(text, raw) {
+			t.Fatalf("prefix len %d is not a prefix", len(raw))
 		}
+		// Final(raw) == r.Render(Sanitize(raw));
+		// Frame(raw) == r.Render(heal.Close(Sanitize(raw))).
+		p := Sanitize(raw)
 		final, err := r.Render(p)
 		if err != nil {
 			t.Fatal(err)
@@ -180,7 +183,7 @@ func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, 
 			want string
 		}{{"Frame", s.Frame, frame}, {"Final", s.Final, final}} {
 			run.Add(1)
-			got, err := k.f(p)
+			got, err := k.f(raw)
 			if err != nil {
 				t.Fatalf("prefix len %d: %s: %v", len(p), k.name, err)
 			}
