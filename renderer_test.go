@@ -88,12 +88,16 @@ func TestRendererInvariant(t *testing.T) {
 	if testing.Short() {
 		cut = tokenScenarioCut
 	}
-	cases := rendererCases(t, cut)
+	cases := append(rendererCases(t, cut), tableDocs()...)
+	if !testing.Short() {
+		// table-20k at full length: the table grows past where the cut stops.
+		cases = append(cases, invCase{"table20k-full", scenario(t, "table-20k")})
+	}
 	ps := patterns(testing.Short())
 	widths := []int{40, 78, 98}
-	var run, passed, forms atomic.Int64
+	var run, passed, forms, spliced atomic.Int64
 	t.Cleanup(func() {
-		t.Logf("renderer invariant: %d prefix checks run, %d passed; %d of %d cases hold forms", run.Load(), passed.Load(), forms.Load(), len(cases))
+		t.Logf("renderer invariant: %d prefix checks run, %d passed; %d of %d cases hold forms; %d tail tables spliced", run.Load(), passed.Load(), forms.Load(), len(cases), spliced.Load())
 	})
 	for _, c := range cases {
 		if hasForm(c.text) {
@@ -110,12 +114,93 @@ func TestRendererInvariant(t *testing.T) {
 						if pat.name == "token" && strings.HasPrefix(c.name, "scenario-") {
 							text = cutUnits(text, tokenScenarioCut)
 						}
+						if c.name == "table20k-full" && pat.name != "frame" {
+							t.Skip("full length at frame prefixes only")
+						}
 						r := newTestRenderer(t, style, w)
-						checkStream(t, r, text, pat.prefixes(text), &run, &passed)
+						s := checkStream(t, r, text, pat.prefixes(text), &run, &passed)
+						spliced.Add(int64(s.stats.tableSpliced))
 					})
 				}
 			}
 		}
+	}
+}
+
+func scenario(t *testing.T, name string) string {
+	t.Helper()
+	for _, sc := range corpus.Scenarios() {
+		if sc.Name == name {
+			return sc.Text
+		}
+	}
+	t.Fatalf("no scenario %s", name)
+	return ""
+}
+
+// handTable is a table of n rows with links (repeated, so footer numbers
+// are shared), inline code, emphasis and wide runes.
+func handTable(n int) string {
+	var b strings.Builder
+	b.WriteString("| # | Name | 名前 | Link | Note |\n| ---: | :--- | :---: | --- | --- |\n")
+	wide := []string{"東京", "大阪府大阪市", "ソウル", "北京", "👍 ok"}
+	notes := []string{"`go test`", "*em* text", "**strong** words", "~~gone~~", "plain words that run on"}
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&b, "| %d | item %d | %s | [docs %d](https://example.com/d%d) | %s |\n", i, i, wide[i%len(wide)], i%3, i%3, notes[i%len(notes)])
+	}
+	return b.String()
+}
+
+// plainTable is a table of n plain rows.
+func plainTable(n int) string {
+	var b strings.Builder
+	b.WriteString("| Key | Value | Comment |\n| --- | --- | --- |\n")
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&b, "| k%d | v%d | row %d of the plain table |\n", i, i*7, i)
+	}
+	return b.String()
+}
+
+// tableDocs: tables in the tail in the ways a reply writes them.
+func tableDocs() []invCase {
+	quoted := strings.ReplaceAll(strings.TrimSuffix(plainTable(25), "\n"), "\n", "\n> ")
+	return []invCase{
+		{"table-hand", "Intro with a [link](https://example.com).\n\n" + handTable(40)},
+		{"table-then-prose", "# Tables\n\n" + plainTable(30) + "\nProse after the table, with *emphasis* and `code`.\n\nMore prose.\n"},
+		{"table-two", "Two tables:\n\n" + plainTable(25) + "\n" + handTable(25) + "\nEnd.\n"},
+		{"table-callout", "Before.\n\n> [!NOTE]\n> " + quoted + "\n\nAfter.\n"},
+	}
+}
+
+// TestTableFastPath: streaming table-20k through NewRenderer at w78 serves
+// most frames from cached rows (the fast path runs, not only the fallback).
+func TestTableFastPath(t *testing.T) {
+	text := scenario(t, "table-20k")
+	r := newTestRenderer(t, "dark", 78)
+	s := NewStream(r, "k", NewCache(256))
+	frames := corpus.FramePrefixes(text)
+	for _, p := range frames {
+		if _, err := s.Frame(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Logf("%d of %d frames spliced", s.stats.tableSpliced, len(frames))
+	if s.stats.tableSpliced < len(frames)*8/10 {
+		t.Fatalf("spliced %d of %d frames", s.stats.tableSpliced, len(frames))
+	}
+	// A raw glamour renderer does not tell its options: whole renders.
+	g, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(78))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s = NewStream(g, "k", NewCache(256))
+	for _, p := range frames[:100] {
+		if _, err := s.Frame(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s.stats.tableSpliced != 0 {
+		t.Fatalf("raw glamour: %d frames spliced", s.stats.tableSpliced)
 	}
 }
 

@@ -5,10 +5,12 @@ import (
 	"strings"
 	"sync"
 
+	"charm.land/glamour/v2/ansi"
 	"github.com/iodesystems/bubbleteandmd/internal/blocks"
 	"github.com/iodesystems/bubbleteandmd/internal/heal"
 	"github.com/iodesystems/bubbleteandmd/internal/join"
 	"github.com/iodesystems/bubbleteandmd/internal/lru"
+	"github.com/iodesystems/bubbleteandmd/internal/tablestream"
 )
 
 // Renderer renders one whole Markdown document. *glamour.TermRenderer
@@ -22,6 +24,16 @@ import (
 // of Frame and Final.
 type Renderer interface {
 	Render(string) (string, error)
+}
+
+// GlamourOptions is an optional interface of a Renderer: the glamour options
+// it renders a plain Markdown table with. ok is false when they are not
+// known (for example, glamour options were given that cannot be read back).
+// When ok, Stream renders a growing table in the tail from cached rows
+// (internal/tablestream), with the same bytes as r.Render; without it, the
+// tail renders whole on every call. *DirectiveRenderer implements it.
+type GlamourOptions interface {
+	GlamourOptions() (opts ansi.Options, ok bool)
 }
 
 // ErrTrimmed is returned by Frame and Final when the Renderer ends a
@@ -91,8 +103,22 @@ type Stream struct {
 	// raw, clean: the previous src up to its last "\n", and Sanitize of it.
 	// Sanitize(raw+x) == clean+Sanitize(x), so only the new text is scanned.
 	raw, clean string
+	// gopts: the Renderer's glamour options, when it tells them
+	// (GlamourOptions); table: the Table of the tail block at tableAt.
+	gopts   ansi.Options
+	tables  bool
+	table   *tablestream.Table
+	tableAt int
+	// stats counts how tails were served (tests).
+	stats streamStats
 	// seen, when set (tests), sees every text given to the splitter.
 	seen func(src string)
+}
+
+// streamStats counts tail renders served by a fast path.
+type streamStats struct {
+	// tableSpliced: tail tables served from cached rows.
+	tableSpliced int
 }
 
 // memo is one rendered block, keyed by its source and whether it is first.
@@ -105,7 +131,11 @@ type memo struct {
 // in c under key. key must name everything that changes r's output (dun:
 // width and style). c may be shared by Streams; nil means no cache.
 func NewStream(r Renderer, key string, c *Cache) *Stream {
-	return &Stream{r: r, key: key, cache: c}
+	s := &Stream{r: r, key: key, cache: c}
+	if g, ok := r.(GlamourOptions); ok {
+		s.gopts, s.tables = g.GlamourOptions()
+	}
+	return s
 }
 
 // Frame renders src while it is still streaming: the tail is healed
@@ -167,7 +197,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		}
 	}
 	if tail != "" {
-		piece, err := s.piece(tail, tailAt == 0)
+		piece, err := s.tailPiece(tail, tailAt, tailAt == bs[len(bs)-1].Offset)
 		if err != nil {
 			return "", err
 		}
@@ -267,6 +297,26 @@ func (s *Stream) block(source string, first bool) (string, error) {
 	k.source = strings.Clone(source)
 	s.cache.store(k, v)
 	return v, nil
+}
+
+// tailPiece renders the tail at offset at. last: the tail is the last block
+// alone (not the last two). A table that is the last block renders through
+// a Table kept for its offset; any other tail renders whole.
+func (s *Stream) tailPiece(tail string, at int, last bool) (string, error) {
+	first := at == 0
+	if !s.tables || !last || !strings.HasPrefix(tail, "|") {
+		return s.piece(tail, first)
+	}
+	if s.table == nil || s.tableAt != at {
+		s.table, s.tableAt = tablestream.New(s.gopts), at
+	}
+	before := s.table.Stats.Spliced
+	out, err := s.table.Render(join.Input(tail, first), s.r)
+	if err != nil {
+		return "", err
+	}
+	s.stats.tableSpliced += s.table.Stats.Spliced - before
+	return join.Strip(out, s.p, s.s)
 }
 
 func (s *Stream) piece(source string, first bool) (string, error) {

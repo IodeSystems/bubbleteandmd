@@ -138,7 +138,8 @@ func TestInvariant(t *testing.T) {
 	}
 }
 
-func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, passed *atomic.Int64) {
+// checkStream streams prefixes through one Stream and returns it.
+func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, passed *atomic.Int64) *Stream {
 	t.Helper()
 	cur := ""
 	c := NewCache(256)
@@ -196,6 +197,7 @@ func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, 
 			passed.Add(1)
 		}
 	}
+	return s
 }
 
 func tailOf(s string) string {

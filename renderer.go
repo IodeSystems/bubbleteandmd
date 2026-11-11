@@ -23,6 +23,7 @@ type DirectiveRenderer struct {
 	style ansi.StyleConfig
 	opts  []glamour.TermRendererOption
 	theme directive.Theme
+	width int
 	outer target
 	// inners: one glamour renderer per inner content width, margin 0.
 	inners map[int]*target
@@ -41,7 +42,7 @@ type target struct {
 // glamour after the style and the word wrap; they must not change either.
 func NewRenderer(style ansi.StyleConfig, width int, opts ...glamour.TermRendererOption) (*DirectiveRenderer, error) {
 	plain := directive.PlainStyle(style)
-	r := &DirectiveRenderer{style: style, opts: opts, theme: directive.ThemeFrom(style, plain), inners: map[int]*target{}}
+	r := &DirectiveRenderer{style: style, opts: opts, theme: directive.ThemeFrom(style, plain), width: width, inners: map[int]*target{}}
 	all := append([]glamour.TermRendererOption{glamour.WithStyles(style), glamour.WithWordWrap(width)}, opts...)
 	g, err := glamour.NewTermRenderer(all...)
 	if err != nil {
@@ -66,6 +67,14 @@ func (t *target) affixes() error {
 	}
 	t.p, t.s, err = join.Affixes(empty)
 	return err
+}
+
+// GlamourOptions returns the options of the glamour renderer that draws
+// plain Markdown at the top level: the style and the word wrap. ok is false
+// when NewRenderer was given glamour options: they cannot be read back.
+// Stream uses it to render a growing table from cached rows (GlamourOptions).
+func (r *DirectiveRenderer) GlamourOptions() (ansi.Options, bool) {
+	return ansi.Options{Styles: r.style, WordWrap: r.width}, len(r.opts) == 0
 }
 
 // Render renders md. An md that starts with join.Sentinel (as Stream sends
