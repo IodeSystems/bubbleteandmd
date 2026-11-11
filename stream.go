@@ -67,10 +67,11 @@ func (c *Cache) store(k cacheKey, v string) {
 }
 
 // Stream renders one document that grows at its end. Blocks before the
-// last two are rendered once and cached; the last two (the tail) are
-// rendered on every call. Both first remove terminal controls (Sanitize).
-// Frame heals the tail; Final does not. The result equals r.Render of the
-// whole sanitized (and healed, for Frame) text.
+// last two are rendered once and cached; the block before the last is
+// rendered when its source changes (the splitter can still reopen it); the
+// last block (the tail) is rendered on every call. Both first remove
+// terminal controls (Sanitize). Frame heals the tail; Final does not. The
+// result equals r.Render of the whole sanitized (and healed, for Frame) text.
 //
 // A Stream is not safe for concurrent use.
 type Stream struct {
@@ -83,8 +84,18 @@ type Stream struct {
 	ready bool
 	// err: the Renderer cannot be joined (setup); returned by every call.
 	err error
+	// near: the last render of the block before the last. The splitter can
+	// still change that block, so it is kept here, keyed by its source, and
+	// not in the shared Cache until it is stable.
+	near memo
 	// seen, when set (tests), sees every text given to the splitter.
 	seen func(src string)
+}
+
+// memo is one rendered block, keyed by its source and whether it is first.
+type memo struct {
+	source, piece string
+	first, ok     bool
 }
 
 // NewStream returns a Stream that renders with r and caches stable blocks
@@ -115,7 +126,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 	}
 	bs := s.split.Split(src)
 	stable := max(0, len(bs)-2)
-	pieces := make([]string, 0, stable+1)
+	pieces := make([]string, 0, len(bs))
 	for _, b := range bs[:stable] {
 		piece, err := s.block(b.Source, b.Offset == 0)
 		if err != nil {
@@ -123,16 +134,34 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		}
 		pieces = append(pieces, piece)
 	}
-	tailAt := 0
-	if stable > 0 {
-		tailAt = bs[stable].Offset
-	}
-	tail := src[tailAt:]
-	if healed {
-		// heal.Close of the tail alone equals the tail of heal.Close(src):
-		// a block boundary is never inside a construct heal completes
-		// (checked by TestInvariant).
-		tail = heal.Close(tail)
+	// tailAt: the last block, or the last two when healing the last alone
+	// is not the end of healing both (heal drops a callout marker line with
+	// the "\n" before it, which is the block before's).
+	tailAt, tail := 0, src
+	if n := len(bs); n > 0 {
+		tailAt, tail = bs[n-1].Offset, src[bs[n-1].Offset:]
+		if healed {
+			tail = heal.Close(tail)
+		}
+		if n > 1 {
+			near := bs[n-2]
+			if healed {
+				// heal.Close of the last two blocks equals the tail of
+				// heal.Close(src): a block boundary is never inside a
+				// construct heal completes (checked by TestInvariant).
+				head := src[near.Offset:tailAt]
+				if two := heal.Close(src[near.Offset:]); !strings.HasPrefix(two, head) || two[len(head):] != tail {
+					tailAt, tail = near.Offset, two
+				}
+			}
+			if tailAt != near.Offset {
+				piece, err := s.nearBlock(near.Source, near.Offset == 0)
+				if err != nil {
+					return "", err
+				}
+				pieces = append(pieces, piece)
+			}
+		}
 	}
 	if tail != "" {
 		piece, err := s.piece(tail, tailAt == 0)
@@ -173,6 +202,20 @@ func (s *Stream) setup() error {
 	return nil
 }
 
+// nearBlock renders the block before the last. It is not cached: appended
+// text can still change it, so it is memoized by its source alone.
+func (s *Stream) nearBlock(source string, first bool) (string, error) {
+	if s.near.ok && s.near.first == first && s.near.source == source {
+		return s.near.piece, nil
+	}
+	v, err := s.piece(source, first)
+	if err != nil {
+		return "", err
+	}
+	s.near = memo{source: source, piece: v, first: first, ok: true}
+	return v, nil
+}
+
 // block renders a stable block, from the cache when it is there.
 func (s *Stream) block(source string, first bool) (string, error) {
 	if s.cache == nil {
@@ -182,9 +225,14 @@ func (s *Stream) block(source string, first bool) (string, error) {
 	if v, ok := s.cache.get(k); ok {
 		return v, nil
 	}
-	v, err := s.piece(source, first)
-	if err != nil {
-		return "", err
+	var v string
+	if s.near.ok && s.near.first == first && s.near.source == source {
+		v = s.near.piece // rendered while it was the block before the last
+	} else {
+		var err error
+		if v, err = s.piece(source, first); err != nil {
+			return "", err
+		}
 	}
 	// source is a substring of src: a copy, so the key does not keep the
 	// whole text of this frame alive.

@@ -13,6 +13,7 @@ import (
 	"github.com/iodesystems/bubbleteandmd/internal/blocks"
 	"github.com/iodesystems/bubbleteandmd/internal/corpus"
 	"github.com/iodesystems/bubbleteandmd/internal/heal"
+	"github.com/iodesystems/bubbleteandmd/internal/join"
 )
 
 // scenarioCut is how much of each scenario is streamed: llx's
@@ -287,6 +288,99 @@ func TestCRLFFrame(t *testing.T) {
 		lf, _ := s.Frame(strings.ReplaceAll(src, "\r\n", "\n"))
 		if crlf != lf {
 			t.Errorf("%q: CRLF frame differs from LF: %s", src, firstDiff(lf, crlf))
+		}
+	}
+}
+
+// TestReopenedBlockNotStale: the splitter can still change the block before
+// the last (a list item continued, a `[!CONS]` joining a `[!PROS]`). Stream
+// memoizes that block by its source, so a changed block is a miss: every
+// frame equals the whole render, and the texts below do reopen it.
+func TestReopenedBlockNotStale(t *testing.T) {
+	texts := []string{
+		"intro\n\n> [!PROS]\n> - fast\n> - small\n\n> [!CONS]\n> - new\n\nend para\n",
+		"intro\n\n- a\n\n  b continues a\n\n- c\n\nafter\n",
+		"intro\n\n1. one\n\n2. two\n\n   more two\n\ntail\n",
+		"# T\n\npara\n\n```go\nx := 1\n\ny := 2\n```\n\nend\n",
+		"a\n\n> quote\n\n> more quote\n\nb\n",
+	}
+	reopened := 0
+	for _, text := range texts {
+		for _, style := range []string{"dark", "notty"} {
+			r := newTestRenderer(t, style, 40)
+			var run, passed atomic.Int64
+			checkStream(t, r, text, corpus.TokenPrefixes(text), &run, &passed)
+			// Count the frames where the block before the last changed in
+			// place: same offset, other source, as the previous frame saw it.
+			reopened += reopens(text)
+		}
+	}
+	if reopened == 0 {
+		t.Fatal("no text reopened the block before the last; the test proves nothing")
+	}
+	t.Logf("%d frames reopened the block before the last", reopened)
+}
+
+// reopens counts the token prefixes of text where the block that was before
+// the last in the previous prefix has another source now (or is merged into
+// the block above it).
+func reopens(text string) int {
+	n := 0
+	var prev blocks.Block
+	for _, raw := range corpus.TokenPrefixes(text) {
+		bs := blocks.Split(Sanitize(raw))
+		if prev.Source != "" {
+			same := false
+			for _, b := range bs {
+				if b.Offset == prev.Offset && b.Source == prev.Source {
+					same = true
+				}
+			}
+			if !same {
+				n++
+			}
+		}
+		prev = blocks.Block{}
+		if len(bs) >= 2 {
+			prev = bs[len(bs)-2]
+		}
+	}
+	return n
+}
+
+// counting counts Render calls per input.
+type counting struct {
+	r Renderer
+	n map[string]int
+}
+
+func (c counting) Render(s string) (string, error) {
+	c.n[s]++
+	return c.r.Render(s)
+}
+
+// TestNearBlockRendersOnce: while the last block grows, the block before it
+// renders once, and once more never when it becomes stable.
+func TestNearBlockRendersOnce(t *testing.T) {
+	g, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := counting{g, map[string]int{}}
+	s := NewStream(r, "k", NewCache(16))
+	head := "# Title\n\npara **two**\n\n"
+	text := head + "third paragraph grows here, word by word.\n\nfourth\n"
+	for _, p := range corpus.TokenPrefixes(text[len(head):]) {
+		if _, err := s.Frame(head + p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if k := r.n[join.Sentinel+"para **two**\n\n"]; k != 1 {
+		t.Errorf("block before the last rendered %d times, want 1", k)
+	}
+	for in, k := range r.n {
+		if strings.Contains(in, "two") && strings.Contains(in, "third") {
+			t.Errorf("rendered %d times with the last block: %q", k, in)
 		}
 	}
 }

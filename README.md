@@ -17,9 +17,10 @@ open code fence, a link without its `)`) shows raw until it closes.
 
 1. **Streaming core.** A line scanner splits the source into blocks only
    where a full parse would split. Blocks before the last two are final:
-   rendered once, cached by (source, width, style). The tail is healed
-   while streaming only — the final text renders as written — and
-   rendered again. Lists, blockquotes, footnotes and link definitions force
+   rendered once, cached by (source, width, style). The block before the
+   last renders again only when its source changes. The last block (the
+   tail) is healed while streaming only — the final text renders as
+   written — and rendered again. Lists, blockquotes, footnotes and link definitions force
    a wider re-render where needed. Block rendering uses glamour.
 2. **Directive blocks.** llx-markdown's syntax, unchanged, so the same
    model output renders in both: `> [!NOTE]`-style callouts, `> [!STEPS]`,

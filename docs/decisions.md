@@ -56,3 +56,11 @@
   heal's other CRLF limits stay as in the TS; Stream turns `\r\n` into
   `\n` first. Still open: heal's inline fixes apply in indented code (a
   `` \t``` `` line gets a closing backtick while it streams).
+- 2026-11-11 (N4): the tail is the last block, not the last two. The block
+  before the last is memoized per Stream by (source, first), not put in the
+  shared Cache (the splitter can still reopen it: `[!CONS]` joins `[!PROS]`;
+  TestReopenedBlockNotStale); a changed source is a miss. It goes to the
+  Cache from the memo when it is stable. Frame heals the last block alone,
+  except when heal of the last two blocks is not their text + heal of the
+  last (heal drops a callout marker line with the `\n` before it): then the
+  last two render together, as before.
