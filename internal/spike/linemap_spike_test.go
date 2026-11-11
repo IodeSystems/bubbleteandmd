@@ -414,9 +414,45 @@ func (m *mirror) frame(t *testing.T, src string, healed bool) []mpiece {
 		}
 	}
 	if tail != "" {
-		pieces = append(pieces, m.piece(t, tail, tailAt == 0))
+		if healed && len(bs) > 0 && tailAt == bs[len(bs)-1].Offset && heldTable(tail) {
+			pieces = append(pieces, m.held(t, tailAt == 0))
+		} else {
+			pieces = append(pieces, m.piece(t, tail, tailAt == 0))
+		}
 	}
 	return pieces
+}
+
+// Stream.Frame draws a last-block GFM table with fewer than holdRows body
+// rows as one muted placeholder line (tablehold.go). Mirrored here: the
+// spike is an external package and cannot call the unexported heldTable.
+const (
+	holdRows = 8
+	holdText = "table…"
+)
+
+var tableDelimLine = regexp.MustCompile(`^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$`)
+
+func heldTable(tail string) bool {
+	if !strings.HasPrefix(tail, "|") {
+		return false
+	}
+	lines := strings.Split(strings.TrimRight(tail, "\n"), "\n")
+	if len(lines) < 2 || !tableDelimLine.MatchString(lines[1]) {
+		return false
+	}
+	body := 0
+	for _, l := range lines[2:] {
+		if strings.HasPrefix(l, "|") {
+			body++
+		}
+	}
+	return body < holdRows
+}
+
+// held is DirectiveRenderer.placeholder: no marks (a table has none).
+func (m *mirror) held(t *testing.T, first bool) mpiece {
+	return mpiece{directive.Frame([]string{m.theme.Muted.Render(holdText)}, m.outer.width, m.outer.frame, first), nil}
 }
 
 // Markers planted in the source: QP<n>Q in every heading (tab panel
