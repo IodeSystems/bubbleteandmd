@@ -108,7 +108,7 @@ func (r *DirectiveRenderer) render(t *target, md string) (string, error) {
 		}
 	}
 	if plain {
-		return t.g.Render(md)
+		return t.g.Render(langs.plainUnknownLangs(md))
 	}
 	var pieces []string
 	for i, p := range ps {
@@ -174,7 +174,7 @@ func (r *DirectiveRenderer) glamourPiece(t *target, pieces []string, src string,
 	if strings.TrimSpace(src) == "" {
 		return pieces, nil
 	}
-	out, err := t.g.Render(join.Input(src, first))
+	out, err := t.g.Render(join.Input(langs.plainUnknownLangs(src), first))
 	if err != nil {
 		return nil, err
 	}
