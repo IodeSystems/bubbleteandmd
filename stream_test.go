@@ -484,3 +484,29 @@ func TestNearBlockRendersOnce(t *testing.T) {
 		}
 	}
 }
+
+// TestListFenceCloseNoShrink: a fence in a list item that heal closes draws
+// as many rows as the same fence closed by its own line, so the frame does
+// not shrink when the closing line arrives (Carl's no-shrink rule).
+func TestListFenceCloseNoShrink(t *testing.T) {
+	g, err := glamour.NewTermRenderer(glamour.WithStandardStyle("notty"), glamour.WithWordWrap(78))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := "- a list item with code:\n\n  ```sh\n  echo hi\n  ```\n\n- next\n"
+	for name, r := range map[string]Renderer{"glamour": g, "NewRenderer": newTestRenderer(t, "notty", 78)} {
+		s := NewStream(r, "k", nil)
+		last, lastP := 0, ""
+		for _, p := range corpus.LinePrefixes(text) {
+			out, err := s.Frame(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h := strings.Count(out, "\n")
+			if h < last {
+				t.Errorf("%s: height %d → %d:\n%q\n→ %q", name, last, h, lastP, p)
+			}
+			last, lastP = h, p
+		}
+	}
+}
