@@ -1,0 +1,6 @@
+[1;38;5;77m+ Pros[m                            [1;38;5;203m− Cons[m
+[1;38;5;77m•[m [38;5;252mFast startup and a small[m        [1;38;5;203m•[m [38;5;252mYoung[m[38;5;252m ecosystem.[m
+  [38;5;252mmemory footprint on every[m       [1;38;5;203m•[m [38;5;252mFew maintainers, so fixes[m
+  [38;5;252mplatform.[m                         [38;5;252mcan take a long while to[m
+[1;38;5;77m•[m [38;5;252mSimple.[m                           [38;5;252mland.[m
+                                  [1;38;5;203m•[m [38;5;252mNo plugin API[m[38;5;252m yet.[m

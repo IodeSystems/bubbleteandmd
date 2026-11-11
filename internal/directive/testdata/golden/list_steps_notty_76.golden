@@ -1,0 +1,9 @@
+Ship it
+1 ● Build (2 min)
+  │ compile the project with make all and wait for the long running linker
+  │ to finish.
+  │
+2 ● Test
+  │ Run the suite.
+  │
+3 ● Just a body with no bold title that is long enough to wrap around.

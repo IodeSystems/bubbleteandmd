@@ -1,0 +1,5 @@
++ Pros                                  − Cons
+• Fast startup and a small memory       • Young ecosystem.
+  footprint on every platform.          • Few maintainers, so fixes can take
+• Simple.                                 a long while to land.
+                                        • No plugin API yet.

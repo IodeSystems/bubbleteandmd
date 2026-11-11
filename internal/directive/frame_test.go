@@ -86,11 +86,8 @@ func TestFrameStyledLinesKeepWidth(t *testing.T) {
 	}
 }
 
-func TestRenderStubs(t *testing.T) {
+func TestRenderUnknownKind(t *testing.T) {
 	var _ ansi.StyleConfig
-	if _, err := Render(Directive{Kind: KindTree}, Ctx{Width: 40}); err == nil {
-		t.Fatal("want error")
-	}
 	if _, err := Render(Directive{}, Ctx{Width: 40}); err == nil {
 		t.Fatal("want error")
 	}
