@@ -52,6 +52,10 @@ out, err = s.Final(reply)  // once, when the reply ends
   reply that ends in one is not the reply.
 - Pass the Renderer raw. Process the source before Frame and the output
   after; a wrapper that trims glamour's newlines gives `ErrTrimmed`.
+- `r.WideBlocks(pane)` (before the first Render): a top-level code block
+  or table wider than `width` is not wrapped; it renders at its own width
+  and each line is cut at `pane` with `… +N cols →`. Prose still wraps at
+  `width`. Put `pane` in the Stream key.
 - On an error, show the raw text (after `Sanitize`).
 - Call `Sanitize` on model text you render outside Stream.
 

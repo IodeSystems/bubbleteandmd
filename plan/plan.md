@@ -83,6 +83,15 @@ forms-20k bench used plain glamour, not DirectiveRenderer.
 - **risks**: formatter registry write is unlocked (first NewRenderer before concurrent renders; documented on NewRenderer). Tied colours differ between processes (as stock).
 - **optional extensions**: deterministic tie-break (lowest palette index) in the cached formatter — changes bytes vs stock's random pick, needs Carl.
 
+### ◐ Wide blocks (Carl + dun-bf decision C, 2026-11-11)
+dun's splitWide ported as `DirectiveRenderer.WideBlocks(pane)` (wide.go; tablestream.Natural; decisions.md).
+- ✅ render + cut + note, Stream wide-table fast path, tests (wide_test.go), bench (bench/wide_bench_test.go).
+- **next**: dun adopts it (dun-bf): NewRenderer(style, proseW) + WideBlocks(avail), drop splitWide/renderAnswer.
+- **risks**: code width read from the source (tab = 4): a tab-heavy line can wrap by a cell or two; table rows with
+  an email or emoji shortcode are not wide (width model refuses them); lines past 512 cells wrap.
+- **blocking decisions**: none. Assumed: note style Theme.Muted; pane < width read as width.
+- **optional extensions**: sideways offset (dun's ←/→) as layer-3 state; wide blocks in lists/quotes/form bodies.
+
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
 - Assumption: benchmark code lives in the repo (`bench/` package, `_test.go`), committed as `test:`/`chore:`.

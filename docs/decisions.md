@@ -104,3 +104,25 @@
   for tied styles every cached escape is one stock can write; glamour
   renders of the corpus equal in every glamour style with tied escapes
   read as one.
+- 2026-11-11 (Carl + dun-bf, decision C): dun's splitWide moves into
+  DirectiveRenderer as `WideBlocks(pane)` (off by default). Why: dun
+  rendered wide code and tables outside Stream, so the no-move invariant
+  and the fast paths did not cover them. A top-level fenced code block or
+  table (one block, no form, no `$$`) wider than the word wrap width
+  renders through a glamour renderer at its own width (code: widest line
+  + code margin + document margins, rounded up to 20 cells; table: the
+  tablestream width model's natural width + margins, exact, since glamour
+  stretches a table to its wrap width), capped at 512 cells. Each line is
+  then cut: one that fits the word wrap width keeps glamour's padding to
+  it (same bytes as a plain render), a wider one loses its trailing blanks,
+  one wider than the pane is cut there with dun's note `… +N cols →`
+  (Theme.Muted). The piece keeps glamour's frame, so blocks join as in a
+  whole render. Differences from dun: no sideways offset (layer 3 can add
+  it), no blank-row stripping and "\n\n" joins (glamour's own spacing),
+  "wide" measured against the word wrap width minus nothing (dun: the
+  prose column), code width measured from the source as dun does, tables
+  from glamour's own cell widths, a cap. Fast paths: a wide table tail
+  grows from cached rows through the wide renderer (Stream keys its Table
+  by wrap width); a wide code tail goes through codestream with the
+  DirectiveRenderer (each chunk decides wide alone; a cut line does not
+  depend on the render width, so chunks agree, SGR-only rule as before).
