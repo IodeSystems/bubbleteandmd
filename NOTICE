@@ -22,3 +22,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+internal/tablestream ports the column-width code of lipgloss
+(charm.land/lipgloss/v2 table/resizing.go and util.go, Copyright (c)
+2021-2026 Charmbracelet, Inc.) and two helpers of glamour
+(charm.land/glamour/v2 ansi/table_links.go, Copyright (c) 2019-2023
+Charmbracelet, Inc), both under the MIT License, the text of which is above.
