@@ -28,3 +28,20 @@
   style that renders a code block. The invariant maps those two pairs to one
   code on both sides before comparing. A cached block keeps one choice, so
   Stream output flickers less than whole renders do.
+- 2026-11-10: `Sanitize` removes terminal controls from the source before
+  Stream splits, heals or caches it. Why: model text can carry them, and
+  glamour v2.0.1 passes them through (verified: OSC 52 clipboard write and
+  `\r` in prose, SGR and OSC 0 in code fences, C1 CSI U+009B and raw 0x9B,
+  `\b`, BEL in prose and table cells); the lipgloss directive renderers
+  read the same text. Removed: C0 controls but tab and newline (`\r\n`
+  becomes `\n`, any other `\r` goes), DEL, C1 U+0080-U+009F, bytes that
+  are not UTF-8, and bidi controls U+202A-U+202E and U+2066-U+2069 (they
+  reorder the text shown: spoofing). ZWJ and emoji stay. Only the control
+  byte goes: the text of an escape sequence after ESC stays visible.
+  Prefix-stable rule: Sanitize(s[:k]) is a prefix of Sanitize(s) for every
+  cut k, so an incomplete UTF-8 sequence at the end is held back, not
+  dropped as invalid; stable blocks and cache keys do not change as the
+  text grows (fuzz test). The CRLF corpus scenario now renders with `\n`
+  line ends. A caller that renders model text outside Stream (glamour
+  directly, its own lipgloss) must call Sanitize first. glamour's own
+  OSC 8 link sequences (ended by BEL) stay; their URL is sanitized text.
