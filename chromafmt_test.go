@@ -1,0 +1,365 @@
+package bubbleteandmd
+
+import (
+	"bytes"
+	"io"
+	"math"
+	"reflect"
+	"regexp"
+	"slices"
+	"sort"
+	"strings"
+	"testing"
+
+	"charm.land/glamour/v2"
+	"charm.land/glamour/v2/styles"
+	"github.com/alecthomas/chroma/v2"
+	"github.com/alecthomas/chroma/v2/formatters"
+	"github.com/alecthomas/chroma/v2/lexers"
+	chromastyles "github.com/alecthomas/chroma/v2/styles"
+	"github.com/iodesystems/bubbleteandmd/internal/corpus"
+)
+
+// codeSample is one code block: its fence language and its text.
+type codeSample struct{ lang, code string }
+
+var fenceRe = regexp.MustCompile("(?ms)^```([^\\s`]*)[^\\n]*\\n(.*?)^```")
+
+// codeSamples: hand samples (CRLF, multi-line tokens, no lexer) and every
+// fenced code block of the corpus documents and scenarios.
+func codeSamples() []codeSample {
+	out := []codeSample{
+		{"go", "package main\n\nimport \"fmt\"\n\n// hi\nfunc main() {\n\tfmt.Println(\"x\", 1.5, `raw\nmulti`)\r\n}\n"},
+		{"py", "def f(x):\n    \"\"\"doc\n    string\"\"\"\n    return [i for i in range(3)] # c\n"},
+		{"json", "{\"a\": [1,2,{\"b\": null}], \"c\": true}\n"},
+		{"sh", "echo $HOME | grep -v 'x' && ls -la # c\n"},
+		{"diff", "--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n"},
+		{"", "plain text with no lexer\n\nline"},
+	}
+	var texts []string
+	for _, d := range corpus.Docs() {
+		texts = append(texts, d.Text)
+	}
+	for _, s := range corpus.Scenarios() {
+		texts = append(texts, s.Text)
+	}
+	for _, t := range texts {
+		for _, m := range fenceRe.FindAllStringSubmatch(t, -1) {
+			out = append(out, codeSample{m[1], m[2]})
+		}
+	}
+	return out
+}
+
+func lexer(lang, code string) chroma.Lexer {
+	if l := lexers.Get(lang); l != nil {
+		return l
+	}
+	if l := lexers.Analyse(code); l != nil {
+		return l
+	}
+	return lexers.Fallback
+}
+
+// testStyles: every chroma style in the registry (glamour's "charm" too once
+// a glamour renderer has drawn code), plus styles with no Text entry and
+// with a Background only, so Format's lookup falls through to Background.
+func testStyles(t *testing.T) []*chroma.Style {
+	t.Helper()
+	// Registers glamour's "charm" chroma style (ansi/codeblock.go).
+	g, err := glamour.NewTermRenderer(glamour.WithStyles(*styles.DefaultStyles["dark"]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Render("```go\nx\n```\n"); err != nil {
+		t.Fatal(err)
+	}
+	names := chromastyles.Names()
+	sort.Strings(names)
+	var out []*chroma.Style
+	for _, n := range names {
+		out = append(out, chromastyles.Get(n))
+	}
+	return append(out,
+		chroma.MustNewStyle("no-text", chroma.StyleEntries{chroma.Keyword: "bold #ff0000", chroma.Comment: "italic #00ff00"}),
+		chroma.MustNewStyle("bg-only", chroma.StyleEntries{chroma.Background: "#0000ff bg:#ffffff"}),
+		chroma.MustNewStyle("empty", chroma.StyleEntries{}))
+}
+
+// palette256 reads stock terminal256's colour tables (unexported fields of
+// chroma's indexedTTYFormatter, read with reflect; chroma v2.27.0).
+func palette256(t *testing.T) (fg, bg map[chroma.Colour]string) {
+	t.Helper()
+	tab := reflect.ValueOf(formatters.Get("terminal256")).Elem().Field(0).Elem()
+	read := func(m reflect.Value) map[chroma.Colour]string {
+		out := map[chroma.Colour]string{}
+		for it := m.MapRange(); it.Next(); {
+			out[chroma.Colour(it.Key().Int())] = it.Value().String()
+		}
+		return out
+	}
+	fg, bg = read(tab.Field(0)), read(tab.Field(1))
+	if len(fg) < 200 || len(bg) < 200 {
+		t.Fatalf("palette: %d fg, %d bg colours", len(fg), len(bg))
+	}
+	return fg, bg
+}
+
+// closest: the escapes of every palette colour at the least distance from c.
+// Stock terminal256 (findClosest) takes the first such colour in map order,
+// so with more than one (a tie) its output changes from call to call.
+func closest(tab map[chroma.Colour]string, c chroma.Colour) []string {
+	best := math.MaxFloat64
+	var out []string
+	for k, esc := range tab {
+		switch d := k.Distance(c); {
+		case d < best:
+			best, out = d, []string{esc}
+		case d == best:
+			out = append(out, esc)
+		}
+	}
+	return out
+}
+
+// escapes: per token type of style, every escape stock terminal256 can write
+// for it (chroma entryToEscapeSequence after clearBackground).
+func escapes(t *testing.T, style *chroma.Style) map[chroma.TokenType][]string {
+	t.Helper()
+	fg, bg := palette256(t)
+	b := style.Builder()
+	e := b.Get(chroma.Background)
+	e.Background, e.NoInherit = 0, true
+	b.AddEntry(chroma.Background, e)
+	cleared, err := b.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[chroma.TokenType][]string{}
+	for _, tt := range cleared.Types() {
+		e := cleared.Get(tt)
+		pre := ""
+		if e.Bold == chroma.Yes {
+			pre += "\x1b[1m"
+		}
+		if e.Underline == chroma.Yes {
+			pre += "\x1b[4m"
+		}
+		if e.Italic == chroma.Yes {
+			pre += "\x1b[3m"
+		}
+		fgs, bgs := []string{""}, []string{""}
+		if e.Colour.IsSet() {
+			fgs = closest(fg, e.Colour)
+		}
+		if e.Background.IsSet() {
+			bgs = closest(bg, e.Background)
+		}
+		for _, f := range fgs {
+			for _, g := range bgs {
+				out[tt] = append(out[tt], pre+f+g)
+			}
+		}
+	}
+	return out
+}
+
+// ties: the escapes of the token types of style that stock writes in more
+// than one way.
+func ties(esc map[chroma.TokenType][]string) []string {
+	var out []string
+	for _, e := range esc {
+		if len(e) > 1 {
+			out = append(out, e...)
+		}
+	}
+	return out
+}
+
+// TestCachedFormatterEqual: for every style, each cached escape is one stock
+// can write; with no tie in the style, the cached formatter writes stock
+// terminal256's bytes for every code sample, also on the second use of the
+// style (table cached). Stock is not deterministic on a tie (see closest).
+func TestCachedFormatterEqual(t *testing.T) {
+	stock := formatters.Get("terminal256")
+	cf := newCachedFormatter(stock)
+	samples := codeSamples()
+	if len(samples) < 20 {
+		t.Fatalf("only %d code samples", len(samples))
+	}
+	sts := testStyles(t)
+	if testing.Short() {
+		sts = append(sts[:6], sts[len(sts)-3:]...)
+	}
+	checks, tied := 0, 0
+	for _, st := range sts {
+		esc := escapes(t, st)
+		tab := cf.table(st)
+		if len(tab) != len(esc) {
+			t.Fatalf("style %s: %d cached types, %d stock types", st.Name, len(tab), len(esc))
+		}
+		for tt, want := range esc {
+			if !slices.Contains(want, tab[tt]) {
+				t.Fatalf("style %s %v: cached %q, stock writes one of %q", st.Name, tt, tab[tt], want)
+			}
+		}
+		if len(ties(esc)) > 0 {
+			tied++
+			continue
+		}
+		for pass := 0; pass < 2; pass++ {
+			for _, s := range samples {
+				l := lexer(s.lang, s.code)
+				var a, b bytes.Buffer
+				it, err := l.Tokenise(nil, s.code)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = stock.Format(&a, st, it)
+				it, _ = l.Tokenise(nil, s.code)
+				_ = cf.Format(&b, st, it)
+				if a.String() != b.String() {
+					t.Fatalf("style %s lang %q: cached differs\nstock  %q\ncached %q", st.Name, s.lang, a.String(), b.String())
+				}
+				checks++
+			}
+		}
+	}
+	t.Logf("%d styles (%d with a tie: escapes checked only), %d samples, %d byte checks", len(sts), tied, len(samples), checks)
+}
+
+// TestRendererChromaFormatter: glamour with the cached formatter renders
+// every corpus document and scenario as glamour with "terminal256" does, in
+// every glamour style and its own chroma colours. glamour registers one
+// "charm" chroma style per process (the first style config wins); this test
+// removes it before each style and puts the first one back after. Escapes of
+// tied token types (glamour dark: Comment, 241 or 242) are read as one.
+// Not parallel: chroma's style registry has no lock.
+func TestRendererChromaFormatter(t *testing.T) {
+	registerChromaFormatter()
+	if formatters.Get("terminal256") == formatters.Get(chromaFormatter) {
+		t.Fatal("terminal256 replaced")
+	}
+	var docs []string
+	for _, d := range corpus.Docs() {
+		docs = append(docs, d.Text)
+	}
+	for _, s := range corpus.Scenarios() {
+		if testing.Short() && len(s.Text) > 30000 {
+			continue
+		}
+		docs = append(docs, s.Text)
+	}
+	for _, sample := range codeSamples()[:6] {
+		docs = append(docs, "```"+sample.lang+"\n"+sample.code+"\n```\n")
+	}
+	names := make([]string, 0, len(styles.DefaultStyles))
+	for n := range styles.DefaultStyles {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	const charm = "charm" // glamour ansi chromaStyleTheme
+	if orig, ok := chromastyles.Registry[charm]; ok {
+		defer func() { chromastyles.Registry[charm] = orig }()
+	} else {
+		defer delete(chromastyles.Registry, charm)
+	}
+	for _, n := range names {
+		delete(chromastyles.Registry, charm)
+		for _, w := range []int{40, 80} {
+			mk := func(f string) *glamour.TermRenderer {
+				g, err := glamour.NewTermRenderer(glamour.WithStyles(*styles.DefaultStyles[n]), glamour.WithWordWrap(w), glamour.WithChromaFormatter(f))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return g
+			}
+			stock, cached := mk("terminal256"), mk(chromaFormatter)
+			if _, err := stock.Render("```go\nx\n```\n"); err != nil {
+				t.Fatal(err)
+			}
+			var tie *strings.Replacer
+			if st, ok := chromastyles.Registry[charm]; ok && styles.DefaultStyles[n].CodeBlock.Chroma != nil {
+				if tt := ties(escapes(t, st)); len(tt) > 0 {
+					t.Logf("style %s: tied escapes %q", n, tt)
+					var pairs []string
+					for _, e := range tt {
+						pairs = append(pairs, e, "\x00tie\x00")
+					}
+					tie = strings.NewReplacer(pairs...)
+				}
+			}
+			for i, d := range docs {
+				a, err := stock.Render(d)
+				if err != nil {
+					t.Fatal(err)
+				}
+				b, err := cached.Render(d)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tie != nil {
+					a, b = tie.Replace(a), tie.Replace(b)
+				}
+				if a != b {
+					t.Fatalf("style %s w%d doc %d: cached formatter differs", n, w, i)
+				}
+			}
+		}
+	}
+}
+
+// countingFormatter counts Format calls of the formatter it wraps.
+type countingFormatter struct {
+	f chroma.Formatter
+	n int
+}
+
+func (c *countingFormatter) Format(w io.Writer, s *chroma.Style, it chroma.Iterator) error {
+	c.n++
+	return c.f.Format(w, s, it)
+}
+
+// TestNewRendererUsesCachedFormatter: DirectiveRenderer's outer and inner
+// renderers and GlamourOptions use the cached formatter, and its bytes are
+// those with stock terminal256 passed as an option (opts come last). Not
+// parallel: it swaps the registry entry (chroma's registry has no lock).
+func TestNewRendererUsesCachedFormatter(t *testing.T) {
+	r := newTestRenderer(t, "dark", 80)
+	if o, _ := r.GlamourOptions(); o.ChromaFormatter != chromaFormatter {
+		t.Fatalf("GlamourOptions().ChromaFormatter = %q", o.ChromaFormatter)
+	}
+	stock, err := NewRenderer(*styles.DefaultStyles["dark"], 80, glamour.WithChromaFormatter("terminal256"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := formatters.Get(chromaFormatter)
+	cnt := &countingFormatter{f: orig}
+	formatters.Register(chromaFormatter, cnt)
+	defer formatters.Register(chromaFormatter, orig)
+	// A code block at the top level (outer) and one in a form body (inner).
+	for _, c := range []struct{ md string }{
+		{"```go\nfunc main() {}\n```\n"},
+		{"> [!NOTE]\n> ```go\n> x := 1\n> ```\n"},
+	} {
+		n := cnt.n
+		b, err := r.Render(c.md)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cnt.n == n {
+			t.Errorf("%q: cached formatter not called", c.md)
+		}
+		n = cnt.n
+		a, err := stock.Render(c.md)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cnt.n != n {
+			t.Errorf("%q: stock renderer called the cached formatter", c.md)
+		}
+		if a != b || !strings.Contains(b, "\x1b[") {
+			t.Errorf("differs or no colour\nstock  %q\ncached %q", a, b)
+		}
+	}
+}

@@ -39,11 +39,18 @@ type target struct {
 }
 
 // NewRenderer returns a renderer for style at word wrap width. opts go to
-// glamour after the style and the word wrap; they must not change either.
+// glamour after the style, the word wrap and the chroma formatter; they must
+// not change the style or the word wrap.
+//
+// Code blocks use chroma formatter "bubbleteandmd-terminal256" (same bytes as
+// "terminal256", style tables cached; chromafmt.go). The first NewRenderer
+// in a process registers it in chroma's formatter registry, which has no
+// lock: make it before other goroutines render with chroma.
 func NewRenderer(style ansi.StyleConfig, width int, opts ...glamour.TermRendererOption) (*DirectiveRenderer, error) {
+	registerChromaFormatter()
 	plain := directive.PlainStyle(style)
 	r := &DirectiveRenderer{style: style, opts: opts, theme: directive.ThemeFrom(style, plain), width: width, inners: map[int]*target{}}
-	all := append([]glamour.TermRendererOption{glamour.WithStyles(style), glamour.WithWordWrap(width)}, opts...)
+	all := append([]glamour.TermRendererOption{glamour.WithStyles(style), glamour.WithWordWrap(width), glamour.WithChromaFormatter(chromaFormatter)}, opts...)
 	g, err := glamour.NewTermRenderer(all...)
 	if err != nil {
 		return nil, err
@@ -70,11 +77,12 @@ func (t *target) affixes() error {
 }
 
 // GlamourOptions returns the options of the glamour renderer that draws
-// plain Markdown at the top level: the style and the word wrap. ok is false
+// plain Markdown at the top level: the style, the word wrap and the chroma
+// formatter. ok is false
 // when NewRenderer was given glamour options: they cannot be read back.
 // Stream uses it to render a growing table from cached rows (GlamourOptions).
 func (r *DirectiveRenderer) GlamourOptions() (ansi.Options, bool) {
-	return ansi.Options{Styles: r.style, WordWrap: r.width}, len(r.opts) == 0
+	return ansi.Options{Styles: r.style, WordWrap: r.width, ChromaFormatter: chromaFormatter}, len(r.opts) == 0
 }
 
 // Render renders md. An md that starts with join.Sentinel (as Stream sends
@@ -197,7 +205,8 @@ func (r *DirectiveRenderer) inner(md string, w int) (string, error) {
 		st := r.style
 		zero := uint(0)
 		st.Document.Margin, st.Document.Indent = &zero, &zero
-		all := append(append([]glamour.TermRendererOption{}, r.opts...), glamour.WithStyles(st), glamour.WithWordWrap(w))
+		all := append([]glamour.TermRendererOption{glamour.WithChromaFormatter(chromaFormatter)}, r.opts...)
+		all = append(all, glamour.WithStyles(st), glamour.WithWordWrap(w))
 		g, err := glamour.NewTermRenderer(all...)
 		if err != nil {
 			return "", err
