@@ -71,7 +71,7 @@ func (t *target) affixes() error {
 // Render renders md. An md that starts with join.Sentinel (as Stream sends
 // every block after the first) renders its first block in not-first place.
 func (r *DirectiveRenderer) Render(md string) (string, error) {
-	return r.render(&r.outer, md)
+	return r.render(&r.outer, Sanitize(md))
 }
 
 // parsed is one top-level block: its source with `$$` formulas made math

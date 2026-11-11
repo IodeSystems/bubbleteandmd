@@ -292,8 +292,8 @@ func TestStreamNoForeignEscapes(t *testing.T) {
 	}
 }
 
-// directiveDocs place the payload in directive titles, labels and bodies.
-var directiveDocs = []struct{ name, text string }{
+// payloadDirectiveDocs place the payload in directive titles, labels and bodies.
+var payloadDirectiveDocs = []struct{ name, text string }{
 	{"callout", "> [!WARNING] Title X\n> body X\n"},
 	{"details", "> [!DETAILS] More X\n> body X\n"},
 	{"steps", "> [!STEPS] Plan X\n> 1. **Step X** *when X* body X\n> 2. **Two** done\n"},
@@ -325,7 +325,7 @@ func TestDirectiveNoForeignEscapes(t *testing.T) {
 			},
 		}
 		raw := 0 // raw payloads that get through: the check is not vacuous
-		for _, dd := range directiveDocs {
+		for _, dd := range payloadDirectiveDocs {
 			for _, p := range payloads {
 				if d, ok := directive.Parse(strings.ReplaceAll(dd.text, "X", p.text)); ok {
 					if lines, err := directive.Render(d, c); err == nil && foreign(strings.Join(lines, "\n")) != "" {
@@ -348,7 +348,7 @@ func TestDirectiveNoForeignEscapes(t *testing.T) {
 				}
 			}
 		}
-		t.Logf("%s: %d of %d raw directive docs emit a foreign escape", style, raw, len(directiveDocs)*len(payloads))
+		t.Logf("%s: %d of %d raw directive docs emit a foreign escape", style, raw, len(payloadDirectiveDocs)*len(payloads))
 		if raw == 0 {
 			t.Errorf("%s: no raw payload gets through the directive renderers; the check is too weak", style)
 		}
