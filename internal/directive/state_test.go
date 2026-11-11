@@ -143,3 +143,12 @@ func TestStateMarksText(t *testing.T) {
 		}
 	}
 }
+
+// TestFocusGlyphWidth: each notty focus glyph swap keeps the cell width.
+func TestFocusGlyphWidth(t *testing.T) {
+	for _, p := range [][2]string{{"▸", "▶"}, {"▾", "▼"}, {"‹", "«"}, {"›", "»"}, {"──", "━━"}} {
+		if a, b := xansi.StringWidth(p[0]), xansi.StringWidth(p[1]); a != b || a == 0 {
+			t.Errorf("%s=%d %s=%d", p[0], a, p[1], b)
+		}
+	}
+}

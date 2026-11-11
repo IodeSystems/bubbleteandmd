@@ -137,9 +137,13 @@
   selected panel's body; folded details: the `▸ Title` lines only; a tree with
   a State entry marks folders `▾`/`▸` and hides rows under a closed one, a
   tree with no entry keeps today's bytes. Focus is reverse video over the
-  part's own style (dark, light). notty draws no focus: Theme.Plain promises
-  no SGR, and a leading marker would move text; the host reads
-  State.Focused. Marks (header, panel, row) come from the form renderers'
+  part's own style (dark, light). notty (Carl 2026-11-11): no SGR, and the
+  focused header changes its own glyph in place, same width so nothing
+  moves: details `▸`→`▶`, `▾`→`▼`; tree folder (with fold marks) `▸`→`▶`,
+  `▾`→`▼`; tabbed header `‹…›`→`«…»`; tree row with no fold mark (file, or
+  any row of a tree with no State entry) at depth ≥ 1: guide `──`→`━━`.
+  No cue: a depth-0 row with no fold mark, and the stacked tabs label list
+  (not Tabbed). The host also reads State.Focused. Marks (header, panel, row) come from the form renderers'
   own line counts and are shifted as Frame (leading blank), join (count of
   "\n") and each body trim (leading "\n" in tabs and verdict, leading blank
   lines in steps, After's blank line) place the lines. Forms in a body take

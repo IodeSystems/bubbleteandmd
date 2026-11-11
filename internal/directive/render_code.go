@@ -63,11 +63,18 @@ func renderTree(d Directive, c Ctx) ([]string, []Mark, error) {
 				b.WriteString(th.Text.Render("│   "))
 			}
 		}
+		// notty draws focus as a glyph swap of the same width: the fold
+		// mark, or for a row with none the guide's rule.
+		glyph := th.Plain && i == cursor && r.Folder && folds
+		rule := "── "
+		if th.Plain && i == cursor && !glyph {
+			rule = "━━ "
+		}
 		if r.Depth >= 1 {
 			if last[i] {
-				b.WriteString(th.Text.Render("└── "))
+				b.WriteString(th.Text.Render("└" + rule))
 			} else {
-				b.WriteString(th.Text.Render("├── "))
+				b.WriteString(th.Text.Render("├" + rule))
 			}
 		}
 		name := r.Name
@@ -77,9 +84,9 @@ func renderTree(d Directive, c Ctx) ([]string, []Mark, error) {
 			}
 			if folds {
 				if ts.Closed[r.Path] {
-					name = "▸ " + name
+					name = th.foldGlyph("▸", "▶", glyph) + " " + name
 				} else {
-					name = "▾ " + name
+					name = th.foldGlyph("▾", "▼", glyph) + " " + name
 				}
 			}
 			b.WriteString(th.focus(th.Heading, i == cursor).Render(name))

@@ -71,7 +71,11 @@ func renderTabs(d Directive, c Ctx) ([]string, []Mark, error) {
 	if st := c.State.tabs(c.Key); st.Tabbed {
 		i := min(max(st.Selected, 0), len(t.Panels)-1)
 		p := t.Panels[i]
-		head := tabsFit("‹"+strconv.Itoa(i+1)+"/"+strconv.Itoa(len(t.Panels))+"› "+p.Label, w)
+		lq, rq := "‹", "›"
+		if focused && c.Theme.Plain {
+			lq, rq = "«", "»"
+		}
+		head := tabsFit(lq+strconv.Itoa(i+1)+"/"+strconv.Itoa(len(t.Panels))+rq+" "+p.Label, w)
 		lines := []string{tabsRule(c, head, w, focused)}
 		body, bm, err := tabsInner(c, p.Body, w, "t"+strconv.Itoa(i))
 		if err != nil {

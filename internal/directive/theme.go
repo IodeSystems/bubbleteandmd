@@ -21,7 +21,8 @@ type Theme struct {
 	Muted   lipgloss.Style // dim: hints, hosts, `when` text
 	// Focus marks the focused header or tree row: reverse video, put over
 	// the part's own style (Style.Inherit). Zero in notty: no SGR there, so
-	// notty draws no focus; the host reads it from State.Focused.
+	// notty draws focus as a same-width glyph swap instead (see foldGlyph);
+	// the host also reads it from State.Focused.
 	Focus lipgloss.Style
 
 	// Quote is the blockquote indent token, e.g. "│ " or "| ". Never empty.
@@ -143,6 +144,14 @@ func prim(p ansi.StylePrimitive) lipgloss.Style {
 		st = st.Faint(true)
 	}
 	return st
+}
+
+// foldGlyph is g, or its same-width focused form f when on (notty focus).
+func (th Theme) foldGlyph(g, f string, on bool) string {
+	if on {
+		return f
+	}
+	return g
 }
 
 // focus is st with Focus over it when on.

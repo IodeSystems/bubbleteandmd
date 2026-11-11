@@ -1,7 +1,7 @@
 ▾ src/
 ├── ▾ app/
 │   ├── main.go  # entry
-│   └── util.go
+│   └━━ util.go
 ├── ▾ docs/
 │   └── ▾ guide/
 │       └── intro.md

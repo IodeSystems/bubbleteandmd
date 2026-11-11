@@ -2,7 +2,7 @@
 ├── ▾ app/
 │   ├── main.go  # entry
 │   └── util.go
-├── ▸ docs/
+├── ▶ docs/
 └── README.md
 --- marks
 7 row line 0 height 1 index 0 src/#0

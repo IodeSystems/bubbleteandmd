@@ -134,11 +134,11 @@ func renderDetails(d Directive, c Ctx) ([]string, []Mark, error) {
 		title = "Details"
 	}
 	folded := c.State.details(c.Key).Folded
-	head, indent := "▾ ", "  "
-	if folded {
-		head = "▸ "
-	}
 	focused := c.State.focused(c.Key)
+	head, indent := c.Theme.foldGlyph("▾", "▼", focused&&c.Theme.Plain)+" ", "  "
+	if folded {
+		head = c.Theme.foldGlyph("▸", "▶", focused&&c.Theme.Plain) + " "
+	}
 	inner := c.Width - 2
 	if inner < 1 {
 		inner = 1
