@@ -8,20 +8,27 @@ import (
 
 // KeyMap binds each Action to keys, named as tea.KeyPressMsg.String names
 // them ("tab", "shift+tab", "enter", "space", "left"). An action with no
-// keys is off. ↑/↓ are not bound: in a Doc with no height they scroll the
-// host (HandleKey returns false).
+// keys is off. The scroll keys act only in a Doc with a height; at height
+// 0 HandleKey returns false for them and the host scrolls.
 type KeyMap map[Action][]string
 
 // DefaultKeyMap: tab and shift+tab move between stops, enter and space
-// toggle, ←/→ change the tab or the tree folder, esc leaves.
+// toggle, ←/→ change the tab or the tree folder, esc leaves; with a height,
+// ↑/↓ scroll a line, pgup/pgdown a page, home/end to the top/bottom.
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
-		ActionNext:   {"tab"},
-		ActionPrev:   {"shift+tab"},
-		ActionToggle: {"enter", "space"},
-		ActionLeft:   {"left"},
-		ActionRight:  {"right"},
-		ActionLeave:  {"esc"},
+		ActionNext:       {"tab"},
+		ActionPrev:       {"shift+tab"},
+		ActionToggle:     {"enter", "space"},
+		ActionLeft:       {"left"},
+		ActionRight:      {"right"},
+		ActionLeave:      {"esc"},
+		ActionScrollUp:   {"up"},
+		ActionScrollDown: {"down"},
+		ActionPageUp:     {"pgup"},
+		ActionPageDown:   {"pgdown"},
+		ActionTop:        {"home"},
+		ActionBottom:     {"end"},
 	}
 }
 

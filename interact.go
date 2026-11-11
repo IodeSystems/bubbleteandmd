@@ -15,7 +15,10 @@ import (
 // draw the zero State, and the end of the stream changes nothing. Focus
 // alone changes no line count or width (a same-width cue only). After an
 // action that returns true, render again (Frame or Final with the same
-// source) to show it; Stops and Focused are those of the last render.
+// source) to show it; Stops and Focused are those of the last render. A
+// scroll action needs no render: View shows it.
+//
+// SetHeight > 0 makes the Doc a viewport that owns the scroll (viewport.go).
 //
 // A Doc is not safe for concurrent use.
 type Doc struct {
@@ -26,6 +29,11 @@ type Doc struct {
 	rows  map[string][]Mark
 	// last: the key focused before Blur, which Focus returns to.
 	last string
+	// viewport (viewport.go): h lines shown from line off of out (total
+	// lines); reveal: what to scroll into view at the next render.
+	h, off, total int
+	out           string
+	reveal        reveal
 }
 
 // StopKind is the kind of form a Stop is.
@@ -77,11 +85,22 @@ const (
 	// ActionLeave blurs the Doc and is not consumed: the host still does
 	// the key's job (esc).
 	ActionLeave Action = "focus.leave"
+	// The scroll actions move the view of a Doc with a height by a line, a
+	// page (the height), or to the top or bottom. They act with or without
+	// focus, and are consumed at an edge too (nothing moves). At height 0
+	// they are not consumed: the host scrolls.
+	ActionScrollUp   Action = "scroll.up"
+	ActionScrollDown Action = "scroll.down"
+	ActionPageUp     Action = "page.up"
+	ActionPageDown   Action = "page.down"
+	ActionTop        Action = "scroll.top"
+	ActionBottom     Action = "scroll.bottom"
 )
 
 // Actions is every Action, in the order a key is looked up and a help list
 // shows them.
-var Actions = []Action{ActionNext, ActionPrev, ActionToggle, ActionLeft, ActionRight, ActionLeave}
+var Actions = []Action{ActionNext, ActionPrev, ActionToggle, ActionLeft, ActionRight, ActionLeave,
+	ActionScrollUp, ActionScrollDown, ActionPageUp, ActionPageDown, ActionTop, ActionBottom}
 
 // NewDoc returns a Doc that renders through NewStream(r, key, c). r should
 // be a StateRenderer (*DirectiveRenderer); with any other Renderer the Doc
@@ -92,10 +111,12 @@ func NewDoc(r Renderer, key string, c *Cache) *Doc {
 	return d
 }
 
-// Frame is Stream.Frame in the Doc's State; it updates the stops.
+// Frame is Stream.Frame in the Doc's State; it updates the stops and
+// returns View (with a height, only the view).
 func (d *Doc) Frame(src string) (string, error) { return d.after(d.s.Frame(src)) }
 
-// Final is Stream.Final in the Doc's State; it updates the stops.
+// Final is Stream.Final in the Doc's State; it updates the stops and
+// returns View.
 func (d *Doc) Final(src string) (string, error) { return d.after(d.s.Final(src)) }
 
 func (d *Doc) after(out string, err error) (string, error) {
@@ -104,7 +125,8 @@ func (d *Doc) after(out string, err error) (string, error) {
 		return out, err
 	}
 	d.stops, d.rows = stopsOf(d.s.Marks())
-	return out, nil
+	d.place(out)
+	return d.View(), nil
 }
 
 // stopsOf groups marks by form key into stops, in line order (the order
@@ -137,8 +159,8 @@ func stopsOf(marks []Mark) ([]Stop, map[string][]Mark) {
 	return stops, rows
 }
 
-// Stops returns the stops of the last output, in focus order. The host
-// scrolls with their lines (height 0: the host owns the scroll).
+// Stops returns the stops of the last output, in focus order, lines
+// counted in the whole output. At height 0 the host scrolls with them.
 func (d *Doc) Stops() []Stop { return d.stops }
 
 // Focused returns the focused stop of the last output, if any.
@@ -167,6 +189,7 @@ func (d *Doc) Focus() bool {
 	if len(d.stops) == 0 {
 		return false
 	}
+	d.reveal = revealStop
 	if d.st.Focused != "" && d.index(d.st.Focused) >= 0 {
 		return true
 	}
@@ -185,6 +208,7 @@ func (d *Doc) FocusLast() bool {
 		return false
 	}
 	d.st.Focused = d.stops[len(d.stops)-1].Key
+	d.reveal = revealStop
 	return true
 }
 
@@ -196,7 +220,8 @@ func (d *Doc) Blur() {
 	d.st.Focused = ""
 }
 
-// Reset clears all state: the layout as streamed, nothing focused.
+// Reset clears all state: the layout as streamed, nothing focused. The
+// height and the view's offset stay.
 func (d *Doc) Reset() {
 	d.st = State{}
 	d.last = ""
@@ -206,8 +231,16 @@ func (d *Doc) Reset() {
 // consumed. With no focus nothing is consumed (the host calls Focus to give
 // the Doc the keys). An action that leaves the Doc (ActionNext past the
 // last stop, ActionPrev before the first, ActionLeave) blurs it and returns
-// false, so the host still acts on the key.
+// false, so the host still acts on the key. A scroll action is consumed
+// when the Doc has a height (viewport.go), with or without focus.
 func (d *Doc) Do(a Action) bool {
+	if isScroll(a) {
+		if d.h == 0 {
+			return false
+		}
+		d.scroll(a)
+		return true
+	}
 	if d.st.Focused == "" {
 		return false
 	}
@@ -229,6 +262,7 @@ func (d *Doc) Do(a Action) bool {
 			return false
 		}
 		d.st.Focused = d.stops[j].Key
+		d.reveal = revealStop
 		return true
 	case ActionLeave:
 		d.Blur()
@@ -350,6 +384,7 @@ func (d *Doc) tree(key string, a Action) bool {
 			}
 		}
 		v.Cursor = folders[j].Path
+		d.reveal = revealCursor
 	default:
 		return false
 	}
