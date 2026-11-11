@@ -1,0 +1,23 @@
+> [!TIP]
+> A tip as the very first block.
+```js
+const x = 1;
+```
+> [!NOTE]
+> Right after code.
+## Heading right after
+> [!CAUTION]
+> After a heading.
+- list
+- items
+> [!IMPORTANT]
+> After a list.
+
+***
+
+> [!WARNING]
+> After a rule.
+
+Paragraph
+> [!NOTE]
+> Lazy after paragraph.

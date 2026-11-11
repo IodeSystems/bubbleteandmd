@@ -1,0 +1,28 @@
+# Callouts
+
+Some text before the callouts.
+
+> [!NOTE]
+> A note with **bold** and `code`, long enough to wrap at forty columns for sure.
+
+> [!TIP] A titled tip
+> Tip body.
+
+> [!IMPORTANT]
+> Important body.
+>
+> - one
+> - two
+
+> [!WARNING]
+> Warning body.
+
+> [!CAUTION] Careful
+> Caution body with a [link](https://example.com).
+
+> A plain quote stays a quote.
+
+> To be or not to be, that is the question asked by many a student.
+> — William Shakespeare
+
+After.
