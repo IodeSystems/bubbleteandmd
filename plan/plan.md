@@ -48,12 +48,20 @@ scrolled up); unconstrained (height 0) → render all, scroll keys return false,
   `$$` fix: MathFences moved to internal/directive with shifts; renderer keys = RawOffset; IDs (and test formsIn) read MathFences(block) too → keys agree also in tab panels/bodies.
   Tests: TestStreamStateInvariant (5104 line prefixes, 4 states × dark/notty × w40/78: Final and Frame (healed; held/chunked aside) + Marks == RenderState), TestStreamStateCache, TestStateKey, TestStateMathBeforeForm, TestStateFastPaths.
 - ◻ L5 Doc/Actions/KeyMap/Stops · L5b viewport mode · L6 audit · L7 docs
+  **next (L5)**: take from dun (internal/tui, read-only; bubbletea v2 tea.KeyPressMsg): consumed contract (wide.go:309 insideWideKeys:
+  leave nested state AND return false), named actions (keymap.go keyAction, translate :256, label :288 → KeyMap.Label), Stops like
+  focusables/moveFocus (panes.go:198, optional takesTab), optional exported NormalizeKey (tui_input.go:1276). Not taken: modal chain,
+  chords, key scopes, editcore. **blocking decision (Carl, open 2026-11-11)**: whether/how dun's input handling (keymap+translate,
+  editcore kill ring/undo, multiline composer, normalizeKey) splits out into a shared lib — not solidified; L5 builds only what Doc needs.
 - `go test -short ./...` at 1d9bacc: all ok (root 483 s with -timeout 60m; default 10m timed out under load ~50, Render vs RenderState cost equal on forms-20k).
 - **risks (L4)**: full (non-short) TestInvariant/TestRendererInvariant not run on dev box (run on M1). With a StateRenderer
   the Cache key holds the block offset: same source at another offset misses. A held table tail followed in the same block by a form (no blank line) shows no marks.
   stateKey scans all State entries per stable block per call (fine for few entries).
 - **risks**: dun still renders raw glamour + splitWide (only calls Sanitize) → nothing reaches dun until D4; interacted tail form re-renders whole each frame; tab switch changes height.
-- **blocking decisions**: glyphs and focus as built in L3 (above) — Carl to confirm; notty focus invisible is the open one (alternative: underline, breaks "notty has no SGR").
+- notty focus: same-width glyph swap (233d92d; Carl): ▸→▶, ▾→▼, ‹›→«», tree guide ──→━━; no cue on depth-0 rows without fold mark and stacked tab labels (decisions.md).
+- ✅ list-item fence no-shrink (c98856f): heal closes a fence at the opener's indent. Gap: opener indented ≥4 (nested list) gets no heal closer.
+- M1 full suite: c98856f all pass (root 1132 s). 82af877 (L4) not yet run on M1.
+- **release**: v0.4.0 tag + push main waits on Carl (auto-mode blocks agent push); suggested at c98856f.
 - **risks (L3)**: TestLineMapSpike fails at d334510 too (mirror text != Stream on dir-code.md, doc-reply: 3 of 1266 frames; marks all ok) — stale mirror, not L3. (`$$` before a form: fixed in L4.) Mark Lines of a form in a side-by-side verdict column are rows, not columns. Tree file rows get no glyph pad (folder names shift 2 cells on first interaction).
 
 ### ◐ Fixes (review + audit 2026-11-10)
