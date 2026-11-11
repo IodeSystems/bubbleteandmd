@@ -41,10 +41,20 @@ scrolled up); unconstrained (height 0) → render all, scroll keys return false,
   folded `▸ Title`; tree with a State entry: `▾ name/` / `▸ name/`, rows under a closed folder hidden. Focus: reverse video (Theme.Focus, Inherit over
   the part's style); notty: no visible focus (no SGR in notty), host reads State.Focused. Tests: zero State = 36 doc goldens (testdata/golden/docs) whole
   and per block; mark keys = interactive IDs keys (48 docs incl. forms-20k, fuzz); line map 4 states × 3 styles × w36/76; 90 state goldens.
-- ◻ L4 state in cache key + StateRenderer · L5 Doc/Actions/KeyMap/Stops · L5b viewport mode · L6 audit · L7 docs
+- ✅ L4 state-aware Stream: root aliases State/TabsState/DetailsState/TreeState/Mark/MarkKind(+consts); `StateRenderer{Renderer; RenderState(md, offset, *State) (string, []Mark, error)}`
+  (DirectiveRenderer.RenderState, was renderState); `Stream.SetState(*State)` (read every call), `Stream.Marks() []Mark` (last output, lines in it).
+  Cache key + near memo += block offset + stateKey(st, [at, at+len)) (entries whose top-level key is in the block, focus too; sorted). Plain Renderer: offset 0, "" (as before).
+  Fast paths: fence/table render through tailRenderer (RenderState), marks kept from the whole-tail fallback render; held/chunks/rows have no forms.
+  `$$` fix: MathFences moved to internal/directive with shifts; renderer keys = RawOffset; IDs (and test formsIn) read MathFences(block) too → keys agree also in tab panels/bodies.
+  Tests: TestStreamStateInvariant (5104 line prefixes, 4 states × dark/notty × w40/78: Final and Frame (healed; held/chunked aside) + Marks == RenderState), TestStreamStateCache, TestStateKey, TestStateMathBeforeForm, TestStateFastPaths.
+- ◻ L5 Doc/Actions/KeyMap/Stops · L5b viewport mode · L6 audit · L7 docs
+- `go test -short ./...` at 1d9bacc: all ok (root 483 s with -timeout 60m; default 10m timed out under load ~50, Render vs RenderState cost equal on forms-20k).
+- **risks (L4)**: full (non-short) TestInvariant/TestRendererInvariant not run on dev box (run on M1). With a StateRenderer
+  the Cache key holds the block offset: same source at another offset misses. A held table tail followed in the same block by a form (no blank line) shows no marks.
+  stateKey scans all State entries per stable block per call (fine for few entries).
 - **risks**: dun still renders raw glamour + splitWide (only calls Sanitize) → nothing reaches dun until D4; interacted tail form re-renders whole each frame; tab switch changes height.
 - **blocking decisions**: glyphs and focus as built in L3 (above) — Carl to confirm; notty focus invisible is the open one (alternative: underline, breaks "notty has no SGR").
-- **risks (L3)**: TestLineMapSpike fails at d334510 too (mirror text != Stream on dir-code.md, doc-reply: 3 of 1266 frames; marks all ok) — stale mirror, not L3. a block with a `$$` formula before a form in the same block: renderer keys read the math-rewritten source, IDs the raw one (offsets differ; not seen in corpus/fuzz). Mark Lines of a form in a side-by-side verdict column are rows, not columns. Tree file rows get no glyph pad (folder names shift 2 cells on first interaction).
+- **risks (L3)**: TestLineMapSpike fails at d334510 too (mirror text != Stream on dir-code.md, doc-reply: 3 of 1266 frames; marks all ok) — stale mirror, not L3. (`$$` before a form: fixed in L4.) Mark Lines of a form in a side-by-side verdict column are rows, not columns. Tree file rows get no glyph pad (folder names shift 2 cells on first interaction).
 
 ### ◐ Fixes (review + audit 2026-11-10)
 - ✅ S1 escape injection: Sanitize before split/heal/cache (c1d5939); DirectiveRenderer.Render calls it (cf7e63f).
