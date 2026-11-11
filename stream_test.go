@@ -3,6 +3,7 @@ package bubbleteandmd
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -10,7 +11,9 @@ import (
 	"unsafe"
 
 	"charm.land/glamour/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/iodesystems/bubbleteandmd/internal/blocks"
+	"github.com/iodesystems/bubbleteandmd/internal/codestream"
 	"github.com/iodesystems/bubbleteandmd/internal/corpus"
 	"github.com/iodesystems/bubbleteandmd/internal/heal"
 	"github.com/iodesystems/bubbleteandmd/internal/join"
@@ -40,6 +43,39 @@ var chromaTies = strings.NewReplacer(
 func untie(s string) string { return chromaTies.Replace(s) }
 
 type invCase struct{ name, text string }
+
+// fenceChecks counts Frame checks of a tail spliced from code chunks
+// (relaxed: Carl B1), and how many of those differ from the whole render.
+var fenceChecks, fenceDiffers atomic.Int64
+
+var sgrRe = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
+
+// sgrOnly reports whether got and want differ in SGR sequences only: the
+// same lines, the same visible text per line, and the same bytes once SGR
+// sequences are removed.
+func sgrOnly(want, got string) bool {
+	w, g := strings.Split(want, "\n"), strings.Split(got, "\n")
+	if len(w) != len(g) {
+		return false
+	}
+	for i := range w {
+		if xansi.Strip(w[i]) != xansi.Strip(g[i]) || sgrRe.ReplaceAllString(w[i], "") != sgrRe.ReplaceAllString(g[i], "") {
+			return false
+		}
+	}
+	return true
+}
+
+// fenceTail reports whether the last block of src opens with a code fence
+// of more than codestream.ChunkLines lines.
+func fenceTail(src string) bool {
+	bs := blocks.Split(src)
+	if len(bs) == 0 {
+		return false
+	}
+	b := bs[len(bs)-1].Source
+	return fenceOpenRe.MatchString(b[:max(0, strings.IndexByte(b, '\n'))]) && strings.Count(b, "\n") > codestream.ChunkLines
+}
 
 func invCases() []invCase {
 	var cs []invCase
@@ -114,7 +150,10 @@ func TestInvariant(t *testing.T) {
 	cases := invCases()
 	ps := patterns(testing.Short())
 	var run, passed atomic.Int64
-	t.Cleanup(func() { t.Logf("invariant: %d prefix checks run, %d passed", run.Load(), passed.Load()) })
+	f0, d0 := fenceChecks.Load(), fenceDiffers.Load()
+	t.Cleanup(func() {
+		t.Logf("invariant: %d prefix checks run, %d passed; %d Frame checks of a growing fence (SGR-only), %d of them differ", run.Load(), passed.Load(), fenceChecks.Load()-f0, fenceDiffers.Load()-d0)
+	})
 	for _, style := range []string{"dark", "light", "notty"} {
 		for _, w := range []int{40, 78, 98} {
 			for _, c := range cases {
@@ -190,6 +229,21 @@ func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, 
 			got, err := k.f(raw)
 			if err != nil {
 				t.Fatalf("prefix len %d: %s: %v", len(p), k.name, err)
+			}
+			if s.stats.lastFence {
+				// Carl B1: a Frame of a growing fence differs in SGR bytes only.
+				if k.name != "Frame" || !fenceTail(healed) {
+					t.Fatalf("prefix len %d: %s spliced from code chunks, tail is not a growing fence: %q", len(p), k.name, tailOf(p))
+				}
+				fenceChecks.Add(1)
+				if untie(got) != untie(k.want) {
+					fenceDiffers.Add(1)
+					if !sgrOnly(untie(k.want), untie(got)) {
+						t.Fatalf("prefix len %d: Frame of a growing fence differs in more than SGR: %s\nprefix: %q", len(p), firstDiff(untie(k.want), untie(got)), tailOf(p))
+					}
+				}
+				passed.Add(1)
+				continue
 			}
 			if got != k.want && untie(got) != untie(k.want) {
 				t.Fatalf("prefix len %d: %s != whole render: %s\nprefix: %q", len(p), k.name, firstDiff(untie(k.want), untie(got)), tailOf(p))

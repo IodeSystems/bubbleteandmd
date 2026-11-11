@@ -96,8 +96,9 @@ func TestRendererInvariant(t *testing.T) {
 	ps := patterns(testing.Short())
 	widths := []int{40, 78, 98}
 	var run, passed, forms, spliced atomic.Int64
+	f0, d0 := fenceChecks.Load(), fenceDiffers.Load()
 	t.Cleanup(func() {
-		t.Logf("renderer invariant: %d prefix checks run, %d passed; %d of %d cases hold forms; %d tail tables spliced", run.Load(), passed.Load(), forms.Load(), len(cases), spliced.Load())
+		t.Logf("renderer invariant: %d prefix checks run, %d passed; %d of %d cases hold forms; %d tail tables spliced; %d Frame checks of a growing fence (SGR-only), %d of them differ", run.Load(), passed.Load(), forms.Load(), len(cases), spliced.Load(), fenceChecks.Load()-f0, fenceDiffers.Load()-d0)
 	})
 	for _, c := range cases {
 		if hasForm(c.text) {
@@ -354,6 +355,39 @@ func TestRendererTinyWidth(t *testing.T) {
 					}
 				}()
 			}
+		}
+	}
+}
+
+// TestFenceFastPath: streaming code-50k serves most frames from code chunks,
+// with raw glamour and with NewRenderer; Final never does.
+func TestFenceFastPath(t *testing.T) {
+	text := scenario(t, "code-50k")
+	frames := corpus.FramePrefixes(text)
+	if testing.Short() {
+		frames = frames[:400]
+	}
+	g, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(78))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range []Renderer{g, newTestRenderer(t, "dark", 78)} {
+		s := NewStream(r, "k", NewCache(256))
+		for _, p := range frames {
+			if _, err := s.Frame(p); err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Logf("%T: %d of %d frames spliced", r, s.stats.fenceSpliced, len(frames))
+		if s.stats.fenceSpliced < len(frames)/2 {
+			t.Fatalf("%T: spliced %d of %d frames", r, s.stats.fenceSpliced, len(frames))
+		}
+		n := s.stats.fenceSpliced
+		if _, err := s.Final(text); err != nil {
+			t.Fatal(err)
+		}
+		if s.stats.fenceSpliced != n || s.stats.lastFence {
+			t.Fatal("Final spliced from code chunks")
 		}
 	}
 }

@@ -73,6 +73,10 @@ type chunk struct {
 // New returns a Fence with ChunkLines-line chunks.
 func New() *Fence { return &Fence{size: ChunkLines} }
 
+// Spliced reports whether the last Frame was put together from chunks (and
+// so may differ from the whole render in SGR bytes).
+func (f *Fence) Spliced() bool { return f.spliced }
+
 // Final renders src whole: exact.
 func (f *Fence) Final(src string, r Renderer) (string, error) { return r.Render(src) }
 

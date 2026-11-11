@@ -2,11 +2,14 @@ package bubbleteandmd
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"sync"
 
 	"charm.land/glamour/v2/ansi"
 	"github.com/iodesystems/bubbleteandmd/internal/blocks"
+	"github.com/iodesystems/bubbleteandmd/internal/codestream"
+	"github.com/iodesystems/bubbleteandmd/internal/directive"
 	"github.com/iodesystems/bubbleteandmd/internal/heal"
 	"github.com/iodesystems/bubbleteandmd/internal/join"
 	"github.com/iodesystems/bubbleteandmd/internal/lru"
@@ -83,7 +86,12 @@ func (c *Cache) store(k cacheKey, v string) {
 // rendered when its source changes (the splitter can still reopen it); the
 // last block (the tail) is rendered on every call. Both first remove
 // terminal controls (Sanitize). Frame heals the tail; Final does not. The
-// result equals r.Render of the whole sanitized (and healed, for Frame) text.
+// result equals r.Render of the whole sanitized (and healed, for Frame)
+// text, with one exception (Carl B1): while a code fence of more than
+// codestream.ChunkLines lines grows in the tail, Frame renders it in chunks,
+// and SGR bytes (colours at a chunk seam) can differ; lines and their text
+// do not. Final is exact. A growing table tail renders from cached rows,
+// exact, when the Renderer tells its options (GlamourOptions).
 //
 // A Stream is not safe for concurrent use.
 type Stream struct {
@@ -109,6 +117,12 @@ type Stream struct {
 	tables  bool
 	table   *tablestream.Table
 	tableAt int
+	// fence renders a growing code fence tail in Frame; plainOpen and
+	// plain: whether the last opening line seen draws as plain glamour
+	// (not a form) with a *DirectiveRenderer.
+	fence     *codestream.Fence
+	plainOpen string
+	plain     bool
 	// stats counts how tails were served (tests).
 	stats streamStats
 	// seen, when set (tests), sees every text given to the splitter.
@@ -119,6 +133,11 @@ type Stream struct {
 type streamStats struct {
 	// tableSpliced: tail tables served from cached rows.
 	tableSpliced int
+	// fenceSpliced: Frame tails put together from code chunks; lastFence:
+	// the last call was one (its output may differ from the whole render
+	// in SGR bytes only, Carl B1).
+	fenceSpliced int
+	lastFence    bool
 }
 
 // memo is one rendered block, keyed by its source and whether it is first.
@@ -152,6 +171,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		}
 		s.ready = true
 	}
+	s.stats.lastFence = false
 	// Before split, heal and cache, so all three see clean text.
 	src = s.sanitize(src)
 	if s.seen != nil {
@@ -197,7 +217,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		}
 	}
 	if tail != "" {
-		piece, err := s.tailPiece(tail, tailAt, tailAt == bs[len(bs)-1].Offset)
+		piece, err := s.tailPiece(tail, tailAt, tailAt == bs[len(bs)-1].Offset, healed)
 		if err != nil {
 			return "", err
 		}
@@ -300,10 +320,26 @@ func (s *Stream) block(source string, first bool) (string, error) {
 }
 
 // tailPiece renders the tail at offset at. last: the tail is the last block
-// alone (not the last two). A table that is the last block renders through
-// a Table kept for its offset; any other tail renders whole.
-func (s *Stream) tailPiece(tail string, at int, last bool) (string, error) {
+// alone (not the last two). When it is the last block: a table renders
+// through a Table kept for its offset (exact); in Frame (healed), a code
+// fence renders in chunks (codestream: may differ in SGR bytes only, Carl
+// B1). Any other tail renders whole.
+func (s *Stream) tailPiece(tail string, at int, last, healed bool) (string, error) {
 	first := at == 0
+	if last && healed && s.plainFence(tail) {
+		if s.fence == nil {
+			s.fence = codestream.New()
+		}
+		out, err := s.fence.Frame(join.Input(tail, first), s.r)
+		if err != nil {
+			return "", err
+		}
+		if s.fence.Spliced() {
+			s.stats.fenceSpliced++
+			s.stats.lastFence = true
+		}
+		return join.Strip(out, s.p, s.s)
+	}
 	if !s.tables || !last || !strings.HasPrefix(tail, "|") {
 		return s.piece(tail, first)
 	}
@@ -317,6 +353,34 @@ func (s *Stream) tailPiece(tail string, at int, last bool) (string, error) {
 	}
 	s.stats.tableSpliced += s.table.Stats.Spliced - before
 	return join.Strip(out, s.p, s.s)
+}
+
+// fenceOpenRe: a fenced code block's opening line (CommonMark: up to three
+// spaces, three or more backticks or tildes, the info string).
+var fenceOpenRe = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})(.*)$")
+
+// plainFence reports whether tail opens with a code fence that draws as
+// glamour's code block: with a *DirectiveRenderer, a titled fence or a file
+// tree is a form, drawn whole.
+func (s *Stream) plainFence(tail string) bool {
+	line := tail
+	if i := strings.IndexByte(tail, '\n'); i >= 0 {
+		line = tail[:i]
+	} else {
+		return false
+	}
+	m := fenceOpenRe.FindStringSubmatch(line)
+	if m == nil || (m[1][0] == '`' && strings.Contains(m[2], "`")) {
+		return false
+	}
+	if _, ok := s.r.(*DirectiveRenderer); !ok {
+		return true
+	}
+	if line != s.plainOpen {
+		_, form := directive.Parse(line + "\n" + m[1] + "\n")
+		s.plainOpen, s.plain = line, !form
+	}
+	return s.plain
 }
 
 func (s *Stream) piece(source string, first bool) (string, error) {
