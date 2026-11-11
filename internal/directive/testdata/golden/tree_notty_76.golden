@@ -1,0 +1,8 @@
+src/
+├── app/
+│   ├── main.go  # entry
+│   └── util.go
+├── docs/
+│   └── guide/
+│       └── intro.md
+└── README.md

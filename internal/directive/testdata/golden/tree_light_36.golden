@@ -1,0 +1,8 @@
+[1;38;5;27msrc/[m
+├── [1;38;5;27mapp/[m
+│   ├── main.go  [2m# entry[m
+│   └── util.go
+├── [1;38;5;27mdocs/[m
+│   └── [1;38;5;27mguide/[m
+│       └── intro.md
+└── README.md

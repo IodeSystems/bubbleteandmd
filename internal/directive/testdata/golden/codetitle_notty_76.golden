@@ -1,0 +1,5 @@
+▤ cmd/server/main.go
+    func main() {                                                         
+    	fmt.Println("a fairly long line of code that needs wrapping at narrow 
+  width")                                                                 
+    }                                                                     
