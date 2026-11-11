@@ -3,6 +3,7 @@ package bench
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"sort"
@@ -23,7 +24,8 @@ import (
 // budget is stopped and the table says how far it got.
 //
 // Skipped unless BENCH_LLX=1. BENCH_LLX_OUT=<file> writes the markdown there
-// as well as to the log. BENCH_LLX_ONLY=chat-5k,... limits the scenarios.
+// as well as to the log; a relative <file> is from the module root (go test
+// runs in bench/), and its directory is made. BENCH_LLX_ONLY=chat-5k,... limits the scenarios.
 func TestLLXMethod(t *testing.T) {
 	if os.Getenv("BENCH_LLX") != "1" {
 		t.Skip("set BENCH_LLX=1")
@@ -269,6 +271,12 @@ func TestLLXMethod(t *testing.T) {
 	out := b.String()
 	t.Log("\n" + out)
 	if f := os.Getenv("BENCH_LLX_OUT"); f != "" {
+		if !filepath.IsAbs(f) {
+			f = filepath.Join("..", f)
+		}
+		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(f, []byte(out), 0o644); err != nil {
 			t.Fatal(err)
 		}
