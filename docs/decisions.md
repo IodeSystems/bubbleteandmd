@@ -64,3 +64,7 @@
   except when heal of the last two blocks is not their text + heal of the
   last (heal drops a callout marker line with the `\n` before it): then the
   last two render together, as before.
+- 2026-11-11 (N5): Stream keeps Sanitize of the previous src up to its last
+  `\n`; a src that extends it scans only the new text. Why exact:
+  Sanitize(a+b) == Sanitize(a)+Sanitize(b) when a ends in `\n`
+  (FuzzSanitizeSplit).

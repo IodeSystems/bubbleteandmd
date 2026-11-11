@@ -354,3 +354,56 @@ func TestDirectiveNoForeignEscapes(t *testing.T) {
 		}
 	}
 }
+
+// checkSplit: Sanitize(a+b) == Sanitize(a)+Sanitize(b) when a ends in "\n",
+// the property Stream's incremental Sanitize rests on.
+func checkSplit(t *testing.T, a, b string) {
+	t.Helper()
+	a += "\n"
+	if got, want := Sanitize(a)+Sanitize(b), Sanitize(a+b); got != want {
+		t.Errorf("Sanitize(%q)+Sanitize(%q) = %q, want %q", a, b, got, want)
+	}
+}
+
+func TestSanitizeSplit(t *testing.T) {
+	ss := sanitizeSeeds()
+	for _, a := range ss {
+		for _, b := range ss {
+			checkSplit(t, a, b)
+		}
+	}
+}
+
+func FuzzSanitizeSplit(f *testing.F) {
+	ss := sanitizeSeeds()
+	for i, a := range ss {
+		f.Add(a, ss[(i+1)%len(ss)])
+	}
+	f.Fuzz(checkSplit)
+}
+
+// TestStreamSanitizeIncremental: the text Stream splits is Sanitize(src) for
+// every src, whether it extends the one before, cuts it, or replaces it.
+func TestStreamSanitizeIncremental(t *testing.T) {
+	r, err := glamour.NewTermRenderer(glamour.WithStandardStyle("notty"), glamour.WithWordWrap(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewStream(r, "k", nil)
+	cur := ""
+	s.seen = func(src string) {
+		if src != Sanitize(cur) {
+			t.Errorf("after %q: splitter sees %q, want %q", tailOf(cur), tailOf(src), tailOf(Sanitize(cur)))
+		}
+	}
+	text := "a\x1b]52;c;x\x07b\r\n\xe2\x82\xac\n\n‮ evil\n\x9b2J\ncode \xc0\n\xf0\x9f\x98\x80 end\n"
+	var srcs []string
+	srcs = append(srcs, bytePrefixes(text, false)...)
+	srcs = append(srcs, text[:9], "other\x1b\n", "other\x1b\nmore\r", text)
+	for _, src := range srcs {
+		cur = src
+		if _, err := s.Frame(src); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

@@ -88,6 +88,9 @@ type Stream struct {
 	// still change that block, so it is kept here, keyed by its source, and
 	// not in the shared Cache until it is stable.
 	near memo
+	// raw, clean: the previous src up to its last "\n", and Sanitize of it.
+	// Sanitize(raw+x) == clean+Sanitize(x), so only the new text is scanned.
+	raw, clean string
 	// seen, when set (tests), sees every text given to the splitter.
 	seen func(src string)
 }
@@ -120,7 +123,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		s.ready = true
 	}
 	// Before split, heal and cache, so all three see clean text.
-	src = Sanitize(src)
+	src = s.sanitize(src)
 	if s.seen != nil {
 		s.seen(src)
 	}
@@ -200,6 +203,31 @@ func (s *Stream) setup() error {
 		return s.err
 	}
 	return nil
+}
+
+// sanitize is Sanitize(src). When src extends the previous src past its
+// last "\n", only the text after that "\n" is scanned.
+func (s *Stream) sanitize(src string) string {
+	var out string
+	if s.raw != "" && strings.HasPrefix(src, s.raw) {
+		rest := Sanitize(src[len(s.raw):])
+		if s.clean == s.raw && rest == src[len(s.raw):] {
+			out = src // nothing removed: no copy
+		} else {
+			out = s.clean + rest
+		}
+	} else {
+		out = Sanitize(src)
+	}
+	// Keep src[:last "\n"+1]. out has the same "\n" bytes as src (Sanitize
+	// keeps every "\n"), so the same cut of out is its sanitized form.
+	if i := strings.LastIndexByte(src, '\n'); i >= 0 {
+		j := strings.LastIndexByte(out, '\n')
+		s.raw, s.clean = src[:i+1], out[:j+1]
+	} else {
+		s.raw, s.clean = "", ""
+	}
+	return out
 }
 
 // nearBlock renders the block before the last. It is not cached: appended
