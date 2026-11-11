@@ -44,9 +44,12 @@ llx-method bench: 30-100× slower than llx; worst = one big growing tail (code-5
 Findings: code splice possible only at safe token cuts (named lang, root lexer state); glamour builds code with s+= (O(n²), elements.go:336);
 tables not spliceable (lipgloss widths from all rows); tail = last 2 blocks re-rendered (stream.go:117-143); Sanitize O(n) per frame.
 forms-20k bench used plain glamour, not DirectiveRenderer.
-- ◐ N1 profile · ◐ N2 code-splice spike · ◐ N3 table-width spike (worktrees)
+- ✅ N1 profile: tail render 88-96%; code-50k chroma lex 38% + writers 40%; table-20k lipgloss table.String 48%; forms-20k chroma lexers.Get filename-glob 32% (unknown fence lang), tail = 2 blocks in ~100% frames.
+- ✅ N2 code splice: raw 0%; with pen-carry repair exact only at safe cuts; cheap predictor 96% precision → not exact. Whole lex 77 ms of 212 ms at 50k.
+- ✅ N3 tables: widths settle by row ≤21; rows splice byte-equal 100% when widths stable; width check 0.35 ms/160 rows.
+- M1 Max same-machine (bench/results/llx-m1max-*.md vs llx-method-m1max-*.md): ours 5-139× slower than llx; code-50k stops at 30 s.
 - ◻ N4 tail = one block (after review fixes) · ◻ N5 stable-piece memo + incremental Sanitize · ◻ N6 code chunker (B1) · ◻ N7 table path (B2) · ◻ N8 bench rerun + DirectiveRenderer column · ◻ N9 docs
-- **blocking decisions** (ask after N2/N3 data): B1 fences without safe cut: whole+exact vs approx Frame/exact Final · B2 tables: T1 port glamour table / T2 provisional widths (moves at end) / T3 stale-exact frames / T4 accept · B3 upstream glamour PRs.
+- Carl 2026-11-11: B1 code = approximate chunked Frame + exact Final (lines never move; seam colours may change at end) · B2 tables = T5 exact row splice, whole render on width change · B3 = draft upstream issue texts only, Carl files them.
 
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
