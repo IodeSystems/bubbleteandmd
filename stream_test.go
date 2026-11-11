@@ -40,6 +40,9 @@ var chromaTies = strings.NewReplacer(
 	"\x1b[38;5;196m", "\x1b[38;5;9m",
 )
 
+// heldChecks counts Frame checks of a held table tail.
+var heldChecks atomic.Int64
+
 func untie(s string) string { return chromaTies.Replace(s) }
 
 type invCase struct{ name, text string }
@@ -247,6 +250,41 @@ func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, 
 					if !sgrOnly(un(k.want), un(got)) {
 						t.Fatalf("prefix len %d: Frame of a growing fence differs in more than SGR: %s\nprefix: %q", len(p), firstDiff(un(k.want), un(got)), tailOf(p))
 					}
+				}
+				passed.Add(1)
+				continue
+			}
+			bs := blocks.Split(p)
+			isHeld := k.name == "Frame" && len(bs) > 0 && func() bool {
+				at := bs[len(bs)-1].Offset
+				return heldTable(heal.Close(p[at:])) && heal.Close(p[at:]) == healed[at:]
+			}()
+			if s.stats.lastHeld != isHeld {
+				t.Fatalf("prefix len %d: %s held=%v, want %v: %q", len(p), k.name, s.stats.lastHeld, isHeld, tailOf(p))
+			}
+			if isHeld {
+				// A held table: the whole render with the tail block replaced
+				// by the placeholder piece.
+				heldChecks.Add(1)
+				at := bs[len(bs)-1].Offset
+				var pieces []string
+				if at > 0 {
+					head, err := r.Render(healed[:at])
+					if err != nil {
+						t.Fatal(err)
+					}
+					if head, err = join.Strip(head, s.p, s.s); err != nil {
+						t.Fatal(err)
+					}
+					pieces = append(pieces, head)
+				}
+				ph, err := s.holdPiece(at == 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := join.Join(s.p, s.s, append(pieces, ph))
+				if got != want && un(got) != un(want) {
+					t.Fatalf("prefix len %d: held Frame != whole render with placeholder: %s\nprefix: %q", len(p), firstDiff(un(want), un(got)), tailOf(p))
 				}
 				passed.Add(1)
 				continue

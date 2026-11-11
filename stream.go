@@ -133,6 +133,10 @@ type Stream struct {
 type streamStats struct {
 	// tableSpliced: tail tables served from cached rows.
 	tableSpliced int
+	// held: Frame tails drawn as the table placeholder; lastHeld: the last
+	// call was one (tablehold.go).
+	held     int
+	lastHeld bool
 	// fenceSpliced: Frame tails put together from code chunks; lastFence:
 	// the last call was one (its output may differ from the whole render
 	// in SGR bytes only, Carl B1).
@@ -171,7 +175,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		}
 		s.ready = true
 	}
-	s.stats.lastFence = false
+	s.stats.lastFence, s.stats.lastHeld = false, false
 	// Before split, heal and cache, so all three see clean text.
 	src = s.sanitize(src)
 	if s.seen != nil {
@@ -323,9 +327,15 @@ func (s *Stream) block(source string, first bool) (string, error) {
 // alone (not the last two). When it is the last block: a table renders
 // through a Table kept for its offset (exact); in Frame (healed), a code
 // fence renders in chunks (codestream: may differ in SGR bytes only, Carl
-// B1). Any other tail renders whole.
+// B1). In Frame, a table with fewer than holdRows body rows is held: one
+// placeholder line (tablehold.go). Any other tail renders whole.
 func (s *Stream) tailPiece(tail string, at int, last, healed bool) (string, error) {
 	first := at == 0
+	if last && healed && heldTable(tail) {
+		s.stats.held++
+		s.stats.lastHeld = true
+		return s.holdPiece(first)
+	}
 	if last && healed && s.plainFence(tail) {
 		if s.fence == nil {
 			s.fence = codestream.New()
