@@ -8,6 +8,7 @@ package prompt
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 )
 
@@ -36,10 +37,12 @@ var diagramKinds = []string{
 	"sankey-beta", "radar-beta", "treemap-beta", "gitGraph",
 }
 
-// Examples are the forms the prompt shows, one string of lines each. They are
-// shown, not described: a model told only about a form keeps writing the
-// table or numbered list it writes by habit.
-var Examples = map[string]string{
+// Examples returns the forms the prompt shows, one string of lines each, by
+// name. They are shown, not described: a model told only about a form keeps
+// writing the table or numbered list it writes by habit. The map is a copy.
+func Examples() map[string]string { return maps.Clone(examples) }
+
+var examples = map[string]string{
 	"comparison": strings.Join([]string{
 		"> [!TABS]",
 		"#### PostgreSQL",
@@ -123,14 +126,14 @@ func Format(o Options) string {
 		"Replies render as GitHub Markdown" + math + " plus the forms below; the user's style preferences override them.",
 		"Match the content to the first form that fits; a table or list is the fallback. Write a marker as its own quote line, the content unquoted after it.",
 		"- Lead with the answer. Short replies use prose; long ones use `##` per thread, short paragraphs and selective bold.",
-		"- Options compared (X vs Y, which to use) or variants (per OS, language): a tab per option, `#### Label`; a compared option holds its sides. After them a `---`, then one line on when to pick which:\n" + shown(Examples["comparison"]),
-		"- One option weighed (should I, is it worth it): its sides, then the verdict:\n" + shown(Examples["verdict"]),
-		"- Stages in order (a plan, recovery, schedule, by day, a procedure): steps, never a numbered list:\n" + shown(Examples["steps"]),
-		"- Headline figures (speedups, sizes, key numbers): stats:\n" + shown(Examples["stats"]),
+		"- Options compared (X vs Y, which to use) or variants (per OS, language): a tab per option, `#### Label`; a compared option holds its sides. After them a `---`, then one line on when to pick which:\n" + shown(examples["comparison"]),
+		"- One option weighed (should I, is it worth it): its sides, then the verdict:\n" + shown(examples["verdict"]),
+		"- Stages in order (a plan, recovery, schedule, by day, a procedure): steps, never a numbered list:\n" + shown(examples["steps"]),
+		"- Headline figures (speedups, sizes, key numbers): stats:\n" + shown(examples["stats"]),
 		"- Exact values across options (specs, prices, limits): a table.",
 		"- A risk or key aside: one or two callouts, quotes starting `> [!KIND]` (" + strings.Join(markers, " ") + "); text after the marker titles it.",
-		"- Long secondary material (a full log, raw output, a derivation): folded, its content quoted:\n" + shown(Examples["details"]),
-		"- Pages the reply draws on: sources, last:\n" + shown(Examples["sources"]),
+		"- Long secondary material (a full log, raw output, a derivation): folded, its content quoted:\n" + shown(examples["details"]),
+		"- Pages the reply draws on: sources, last:\n" + shown(examples["sources"]),
 		"- A directory layout: a ```tree fence of `├──`/`└──` lines. Things to do: `- [ ] item`.",
 		"- Code for a file names it: ```ts title=\"src/app.ts\". A change to code: a ```diff fence.",
 	}

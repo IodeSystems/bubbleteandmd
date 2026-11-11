@@ -103,3 +103,19 @@ func TestOptions(t *testing.T) {
 		}
 	}
 }
+
+// TestExamplesCopy: a caller that changes the map it got does not change
+// the prompt.
+func TestExamplesCopy(t *testing.T) {
+	before := Format(Options{})
+	ex := Examples()
+	if len(ex) != 6 {
+		t.Fatalf("got %d examples, want 6", len(ex))
+	}
+	for k := range ex {
+		ex[k] = "changed"
+	}
+	if Format(Options{}) != before || Examples()["steps"] == "changed" {
+		t.Error("changing Examples() changed the prompt")
+	}
+}
