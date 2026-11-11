@@ -104,3 +104,18 @@
   for tied styles every cached escape is one stock can write; glamour
   renders of the corpus equal in every glamour style with tied escapes
   read as one.
+- 2026-11-11 (table hold, Carl): while Frame streams, a GFM table that is the
+  last block and has fewer than 8 body rows (`holdRows`, counted on the
+  healed tail, so a partial row is not counted) draws as one muted line
+  `table…` (DirectiveRenderer: Muted style in the glamour paragraph frame;
+  any other Renderer: a plain paragraph). It becomes the table when it has 8
+  rows, when a later block starts, or at Final. Reason: column widths settle
+  in the first rows, so the table appears once and does not reflow (no screen
+  bounce); the line count grows only downward. Final is unchanged. Frame ==
+  the whole render with the tail block replaced by the placeholder piece
+  (invariant tests; `stats.held` counts held tails and the test fails if a
+  held tail is not a table of < 8 rows, or a such table is not held).
+  Measured (table-20k, w78/w98, dark): total table width at first
+  appearance equals final (76, 96); column 1 is 2 cells narrower at row 8
+  than final (9 vs 11), so the column rule can still change once. The frame
+  never shrinks after the table shows.
