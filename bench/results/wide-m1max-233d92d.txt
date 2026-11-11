@@ -1,0 +1,11 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/iodesystems/bubbleteandmd/bench
+cpu: Apple M1 Max
+BenchmarkWideStream/wide-code-600/pane0-10         	       3	2067480208 ns/op	      1168 frames/op
+BenchmarkWideStream/wide-code-600/pane78-10        	       3	2711111431 ns/op	      1168 frames/op
+BenchmarkWideStream/wide-table-160/pane0-10        	       3	 361442278 ns/op	      1547 frames/op
+BenchmarkWideStream/wide-table-160/pane78-10       	       3	2217194750 ns/op	      1547 frames/op
+PASS
+ok  	github.com/iodesystems/bubbleteandmd/bench	30.368s
+rc=0
