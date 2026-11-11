@@ -45,3 +45,14 @@
   line ends. A caller that renders model text outside Stream (glamour
   directly, its own lipgloss) must call Sanitize first. glamour's own
   OSC 8 link sequences (ended by BEL) stay; their URL is sanitized text.
+- 2026-11-10: Stream checks its Renderer at setup: a probe paragraph must
+  end in a newline, else every call returns `ErrTrimmed`. Why: a wrapper
+  that trims glamour's newlines gave empty affixes and wrong output with no
+  error. Pre- and post-processing go on src and on output, not in the
+  Renderer.
+- 2026-11-10: heal reads a fence's indent as up to three spaces (CommonMark,
+  blocks.Split), not the TS `\s{0,3}`. Why: `` \t``` `` is indented code; the
+  TS closed it as a fence, so the frame showed a fence the final text lacks.
+  heal's other CRLF limits stay as in the TS; Stream turns `\r\n` into
+  `\n` first. Still open: heal's inline fixes apply in indented code (a
+  `` \t``` `` line gets a closing backtick while it streams).

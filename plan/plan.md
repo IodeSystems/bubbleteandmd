@@ -28,15 +28,25 @@ DAG: ✅ D1 frame spike (internal/spike/frame_spike_test.go: margin 2 plain, con
 ### ◻ 3. Interactive bubbletea component (fold, tabs, state per block id)
 
 ### ◐ Fixes (review + audit 2026-11-10)
-- ◐ S1 escape injection: Sanitize() before split/heal/cache (worktree agent). Then DirectiveRenderer.Render calls it.
-- ◻ R1 cache keys pin whole old src (stream.go:137,145) → strings.Clone. CONFIRMED.
-- ◻ R2 Renderer that trims newlines → Affixes empty → wrong join, no error. Detect + error; doc that dun passes raw TermRenderer. CONFIRMED.
-- ◻ R3 heal CRLF: fence.go:323 rejects \r lines; heal.go:64 last paragraph by "\n\n" only. CONFIRMED (moot after Sanitize turns \r\n→\n; add test).
-- ◻ R4 directive dedentItem spaces only (source.go:243) · R5 Frame panics width<0 (frame.go:49,57) CONFIRMED · R6 heal tab before fence (fence.go leadingSpace) CONFIRMED
-  · R7 renderCodeTitle no width cut · R8 StyleOf colour 0-15 / 3-digit hex pad bytes differ (frame.go:31-38), theme.go:263 colour 8 · R9 join sgrEnd unaware of OSC (join.go:276).
-- ◻ R10 Final needed at stream end: 4 scenarios ending in a table row without newline move (heal drops partial row). Document for dun.
+- ✅ S1 escape injection: Sanitize before split/heal/cache (c1d5939); DirectiveRenderer.Render calls it (cf7e63f).
+- ✅ R1 cache keys copy block source (c28cc3d) · ✅ R2 ErrTrimmed for a Renderer that trims newlines + Renderer doc (1ff8485)
+  · ✅ R3 no heal change (TS behaviour); Stream CRLF test (1fa93b8) · ✅ R4 dedentItem tabs to 4-col stops (67949f2)
+  · ✅ R5 Frame clamps width<0; NewRenderer w0..5 test (4acb1f9; NewRenderer did not panic before) · ✅ R6 heal fence indent spaces only (dade43f)
+  · ✅ R7 titled code lines cut to width (f3647e0) · ✅ R8 pad cell as glamour writes it; colour 8 dark text (ebcfb43)
+  · ✅ R9 DropCells reads CSI/OSC, incomplete safe (6aa9119) · ✅ R10 README "Use"; prompt.Examples() returns a copy (f2146f4).
+- ◻ New (found in R6): heal inline fixes apply inside indented code (`\t```` tail gets a "`" while streaming). TS has it too. Fix needs a list-aware
+  "is indented code" test in heal; a naive 4-space rule would stop healing list continuation paragraphs.
 - ◐ Bench vs llx: Go llx-method bench (worktree agent); llx's own bench on M1 Max 10.100.0.3 (office VPN) with local bun in ~/tmp/bubbleteandmd-bench.
-- **next**: merge S1 → R1-R10 in one fix agent → full test → v0.2.0 ask.
+- **next**: v0.2.0 ask (Carl). **risks**: R9 changes join for every seam (invariant passes, see run); R2 adds one probe render per Stream.
+
+### ◐ Speed: growing tail block (planner 2026-11-10)
+llx-method bench: 30-100× slower than llx; worst = one big growing tail (code-50k stops at 30 s, table-20k 13.5 s, forms-20k 9.5 s).
+Findings: code splice possible only at safe token cuts (named lang, root lexer state); glamour builds code with s+= (O(n²), elements.go:336);
+tables not spliceable (lipgloss widths from all rows); tail = last 2 blocks re-rendered (stream.go:117-143); Sanitize O(n) per frame.
+forms-20k bench used plain glamour, not DirectiveRenderer.
+- ◐ N1 profile · ◐ N2 code-splice spike · ◐ N3 table-width spike (worktrees)
+- ◻ N4 tail = one block (after review fixes) · ◻ N5 stable-piece memo + incremental Sanitize · ◻ N6 code chunker (B1) · ◻ N7 table path (B2) · ◻ N8 bench rerun + DirectiveRenderer column · ◻ N9 docs
+- **blocking decisions** (ask after N2/N3 data): B1 fences without safe cut: whole+exact vs approx Frame/exact Final · B2 tables: T1 port glamour table / T2 provisional widths (moves at end) / T3 stale-exact frames / T4 accept · B3 upstream glamour PRs.
 
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.

@@ -34,6 +34,26 @@ open code fence, a link without its `)`) shows raw until it closes.
 Plus a short format prompt that teaches a model the directive forms
 (like llx-markdown's `answerFormatPrompt`).
 
+## Use
+
+```go
+r, err := bubbleteandmd.NewRenderer(styles.DarkStyleConfig, width) // or a raw *glamour.TermRenderer
+cache := bubbleteandmd.NewCache(512)                              // one per program
+s := bubbleteandmd.NewStream(r, fmt.Sprintf("dark/%d", width), cache) // one per reply
+out, err := s.Frame(reply) // each time the reply grows
+out, err = s.Final(reply)  // once, when the reply ends
+```
+
+- One Stream per reply. When the width or style changes, make a new
+  Renderer and a new Stream with a key that names both.
+- Call Final when the stream ends and show its output. Frame hides a
+  partial table row and other half-written syntax, so the last Frame of a
+  reply that ends in one is not the reply.
+- Pass the Renderer raw. Process the source before Frame and the output
+  after; a wrapper that trims glamour's newlines gives `ErrTrimmed`.
+- On an error, show the raw text (after `Sanitize`).
+- Call `Sanitize` on model text you render outside Stream.
+
 ## Rules
 
 - Terminal controls in the source never reach the terminal: Stream calls
