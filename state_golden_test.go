@@ -343,6 +343,9 @@ func headText(d directive.Directive, m directive.Mark, st *directive.State) stri
 	}
 }
 
+// focusGlyphs maps the notty focus glyphs back to the unfocused ones.
+var focusGlyphs = strings.NewReplacer("▶", "▸", "▼", "▾", "«", "‹", "»", "›")
+
 // TestStateLineMap: in every state, each mark's line holds its header
 // text and its lines exist, whole and block by block as Stream renders.
 func TestStateLineMap(t *testing.T) {
@@ -367,7 +370,8 @@ func TestStateLineMap(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						lines := strings.Split(xansi.Strip(out), "\n")
+						// notty focus swaps glyphs in place; undo it for the text check
+						lines := strings.Split(focusGlyphs.Replace(xansi.Strip(out)), "\n")
 						for _, m := range ms {
 							marks++
 							if m.Line < 0 || m.Height < 1 || m.Line+m.Height > len(lines) {
