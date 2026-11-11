@@ -239,6 +239,11 @@ func TestRendererEnd(t *testing.T) {
 
 func frameEqualsFinal(t *testing.T, r Renderer, text string) bool {
 	t.Helper()
+	// Raw glamour breaks colour ties at random; NewRenderer does not.
+	un := func(s string) string { return s }
+	if _, raw := r.(*glamour.TermRenderer); raw {
+		un = untie
+	}
 	s := NewStream(r, "k", NewCache(256))
 	final, err := s.Final(text)
 	if err != nil {
@@ -248,8 +253,8 @@ func frameEqualsFinal(t *testing.T, r Renderer, text string) bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if untie(frame) != untie(final) {
-		t.Log(firstDiff(untie(final), untie(frame)))
+	if un(frame) != un(final) {
+		t.Log(firstDiff(un(final), un(frame)))
 		return false
 	}
 	return true
