@@ -53,6 +53,27 @@ var handTables = map[string]string{
 	"narrow": "| a | b | c | d | e | f |\n|---|---|---|---|---|---|\n| 1 | 2 | 3 | 4 | 5 | 6 |\n" +
 		"| one two three four five six | seven | eight nine ten | eleven | twelve thirteen | fourteen |\n| q | w | e | r | t | y |\n",
 	"short-rows": "| a | b | c |\n| --- | --- | --- |\n| 1 |\n| 1 | 2 |\n| 1 | 2 | 3 | 4 |\n| solo row with text |\n| |\n|\n| end | end | end |\n",
+	// floor: at width 40, lipgloss v2.1.0 stops shrinking a column at its
+	// minWidth floor (frame + narrowest cell); v2.0.4 gave [6 6 6 7 7].
+	"floor": "| xxxxxxxx | xxxxxxxxxxxx | xxxxxxxxxxxx | xxxxxxx | xxxxxxxxxx |\n| --- | --- | --- | --- | --- |\n" +
+		"| x | xxxxxxxxxxx | xxxxxxxxx | xxxxxx | xxx |\n| a | bbbbbbbbbbb | ccccccccc | dddddd | eee |\n",
+}
+
+// TestWidthModel: the width model gives the widths glamour draws for every
+// hand table in every config (a mismatch turns the fast path off).
+func TestWidthModel(t *testing.T) {
+	for name, tab := range handTables {
+		for _, c := range configs {
+			tb := newTable(c)
+			src := "Intro line.\n\n" + tab
+			if _, err := tb.Render(src, newGlamour(t, c.style, c.width)); err != nil {
+				t.Fatal(err)
+			}
+			if tb.off {
+				t.Errorf("%s/%s-%d: width model differs from glamour", name, c.style, c.width)
+			}
+		}
+	}
 }
 
 type config struct {

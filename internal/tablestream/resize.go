@@ -5,14 +5,15 @@ import (
 	"sort"
 )
 
-// modelWidths returns the column widths lipgloss v2.0.4 gives a table with
+// modelWidths returns the column widths lipgloss v2.1.0 gives a table with
 // header and rows of these cell display widths, at table width width, with
 // the cell style glamour sets (ansi/table.go setStyles: margin 1 each side,
 // no padding in glamour's default styles: frame 2) and its borders (column
 // separators only).
 //
 // Ported from lipgloss table/resizing.go (resize, newResizer,
-// optimizedWidths, expandTableWidth, shrinkTableWidth; MIT). It is not read
+// optimizedWidths, expandTableWidth, shrinkTableWidth, minWidth; MIT;
+// v2.1.0 added the minWidth floor pass). It is not read
 // from a rendered table: lipgloss cuts each line at the table width, so a
 // table drawn wider shows the separator of one that fits.
 func modelWidths(head []int, rows [][]int, width int) []int {
@@ -36,17 +37,18 @@ func modelWidths(head []int, rows [][]int, width int) []int {
 		all = append(all, p)
 	}
 	type column struct {
-		max    int
-		widths []int // rows after the one that added the column
+		min, max int
+		widths   []int // rows after the one that added the column
 	}
 	var cs []column
 	for _, r := range all {
 		for i, w := range r {
 			if len(cs) <= i {
-				cs = append(cs, column{max: w})
+				cs = append(cs, column{min: w, max: w})
 				continue
 			}
 			cs[i].widths = append(cs[i].widths, w)
+			cs[i].min = min(cs[i].min, w)
 			cs[i].max = max(cs[i].max, w)
 		}
 	}
@@ -74,12 +76,15 @@ func modelWidths(head []int, rows [][]int, width int) []int {
 	for j, c := range cs {
 		medians[j] = median(c.widths)
 	}
-	// A width equal to the fixed width (0: none set) is skipped, as lipgloss does.
-	biggest := func(veryBigOnly bool) {
+	// floor: lipgloss minWidth, the frame plus the narrowest cell (at least 1).
+	floor := func(j int) int { return frame + max(cs[j].min, 1) }
+	// A width equal to the fixed width (0: none set) is skipped, as lipgloss does;
+	// with useFloor, so is a width at or below the floor.
+	biggest := func(veryBigOnly, useFloor bool) {
 		for sum(ws)+border > width {
 			at, big := -math.MaxInt32, -math.MaxInt32
 			for j, w := range ws {
-				if w == 0 {
+				if w == 0 || useFloor && w <= floor(j) {
 					continue
 				}
 				if veryBigOnly {
@@ -96,11 +101,11 @@ func modelWidths(head []int, rows [][]int, width int) []int {
 			ws[at]--
 		}
 	}
-	toMedian := func() {
+	toMedian := func(useFloor bool) {
 		for sum(ws)+border > width {
 			at, diff := -math.MaxInt32, -math.MaxInt32
 			for j, w := range ws {
-				if w == 0 {
+				if w == 0 || useFloor && w <= floor(j) {
 					continue
 				}
 				d := w - medians[j]
@@ -115,9 +120,15 @@ func modelWidths(head []int, rows [][]int, width int) []int {
 			ws[at]--
 		}
 	}
-	biggest(true)
-	toMedian()
-	biggest(false)
+	biggest(true, true)
+	toMedian(true)
+	biggest(false, true)
+	// Still too wide (a width budget below the floors): again with no floor.
+	if sum(ws)+border > width {
+		biggest(true, false)
+		toMedian(false)
+		biggest(false, false)
+	}
 	return ws
 }
 
