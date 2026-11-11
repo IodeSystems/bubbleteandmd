@@ -25,7 +25,19 @@ DAG: ✅ D1 frame spike (internal/spike/frame_spike_test.go: margin 2 plain, con
   goldmark vs remark list reading; growing tail directive re-rendered every frame; pros alone stacked → side by side when cons arrives.
 - **blocking decisions**: llx-deviation: DETAILS title rule (parser uses callout rule; llx drops plain title before formatted line — looks like llx bug) needs Carl. One-line `> quote — Author` not attributed (follows llx code, not syntax.md).
 - Carl 2026-11-10: B1 NewRenderer(style,width) · B2 top level + inside form bodies · B3 DETAILS open · B4/B5 kind label always + fixed GitHub hues, notty plain · B6 64 cells · B7 $$ as math code · O1 section numbers, O2 figures, O3 raw <details> IN scope.
-### ◻ 3. Interactive bubbletea component (fold, tabs, state per block id)
+### ◐ 3. Interactive component (planner 2026-11-11)
+Shape: not a tea.Model (host needs "key consumed" bool). `Doc` per reply wraps Stream + state map; `Frame/Final`, `Do(Action) bool`,
+`HandleKey(tea.KeyPressMsg, KeyMap) bool`, `Focus/Blur`, `Stops() []Stop{ID,Kind,Line,Height}`, `Reset()`.
+Carl 2026-11-11: layout stays as streamed (tabs stacked, details/trees open) until the user interacts; stream end changes nothing ·
+bubbletea import OK for thin HandleKey · tab/shift+tab move stops, enter/space toggle, ←/→ tabs, ↑/↓ = scroll · tabs switch to
+one-tab view on ←/→ or enter, not on focus · tree = one stop, rows walked inside · start now, before dun adopts Stream ·
+viewport: constrained (host sets height) → component owns scroll (↑/↓ PgUp/PgDn, focus scrolls into view, follow bottom unless
+scrolled up); unconstrained (height 0) → render all, scroll keys return false, host scrolls via Stops().
+- ✅ L1 line map spike (1a964bf): exact from newline counts; 43042 marks/config, 0 wrong; 3-16 µs/frame. API: Stream.FrameSpans.
+- ✅ L2 directive.IDs (0e41a93): 118745 IDs at every frame prefix, 0 kind changes, 0 collisions.
+- ◻ L3 stateful renderers + Theme.Focus · L4 state in cache key + StateRenderer · L5 Doc/Actions/KeyMap/Stops · L5b viewport mode · L6 audit · L7 docs
+- **risks**: dun still renders raw glamour + splitWide (only calls Sanitize) → nothing reaches dun until D4; interacted tail form re-renders whole each frame; tab switch changes height.
+- **blocking decisions**: glyphs (▸/▾, closed folder mark, ‹1/3› layout, focus colour per style incl. notty) — default to plan's proposal unless Carl objects.
 
 ### ◐ Fixes (review + audit 2026-11-10)
 - ✅ S1 escape injection: Sanitize before split/heal/cache (c1d5939); DirectiveRenderer.Render calls it (cf7e63f).
