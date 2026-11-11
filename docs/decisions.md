@@ -131,3 +131,17 @@
   appearance equals final (76, 96); column 1 is 2 cells narrower at row 8
   than final (9 vs 11), so the column rule can still change once. The frame
   never shrinks after the table shows.
+- 2026-11-11 (L3): form state is `directive.State`, by FormID.Key; the zero
+  State draws the streamed layout byte for byte (goldens of testdata/directives
+  made before the change). Tabbed tabs: one `‹i/n› Label ───` line and the
+  selected panel's body; folded details: the `▸ Title` lines only; a tree with
+  a State entry marks folders `▾`/`▸` and hides rows under a closed one, a
+  tree with no entry keeps today's bytes. Focus is reverse video over the
+  part's own style (dark, light). notty draws no focus: Theme.Plain promises
+  no SGR, and a leading marker would move text; the host reads
+  State.Focused. Marks (header, panel, row) come from the form renderers'
+  own line counts and are shifted as Frame (leading blank), join (count of
+  "\n") and each body trim (leading "\n" in tabs and verdict, leading blank
+  lines in steps, After's blank line) place the lines. Forms in a body take
+  keys `<form>/<slot>@<offset>` as IDs gives them; text that is not a body
+  (titles, stat values, attribution) renders with no state and no marks.

@@ -35,9 +35,16 @@ viewport: constrained (host sets height) → component owns scroll (↑/↓ PgUp
 scrolled up); unconstrained (height 0) → render all, scroll keys return false, host scrolls via Stops().
 - ✅ L1 line map spike (1a964bf): exact from newline counts; 43042 marks/config, 0 wrong; 3-16 µs/frame. API: Stream.FrameSpans.
 - ✅ L2 directive.IDs (0e41a93): 118745 IDs at every frame prefix, 0 kind changes, 0 collisions.
-- ◻ L3 stateful renderers + Theme.Focus · L4 state in cache key + StateRenderer · L5 Doc/Actions/KeyMap/Stops · L5b viewport mode · L6 audit · L7 docs
+- ✅ L3 stateful renderers + Theme.Focus + marks (d3002ba): `directive.State` (Tabs/Details/Trees by FormID.Key, Focused);
+  `Ctx{State, Key, Body}`; `Render` → (lines, []Mark{Key, Kind header|panel|row, Line, Height, Index, Path}, err), After drawn inside Render;
+  unexported `DirectiveRenderer.renderState(md, offset, st)` (marks counted in out, P lines included). Glyphs: tabbed `‹i/n› Label ───` + selected panel only;
+  folded `▸ Title`; tree with a State entry: `▾ name/` / `▸ name/`, rows under a closed folder hidden. Focus: reverse video (Theme.Focus, Inherit over
+  the part's style); notty: no visible focus (no SGR in notty), host reads State.Focused. Tests: zero State = 36 doc goldens (testdata/golden/docs) whole
+  and per block; mark keys = interactive IDs keys (48 docs incl. forms-20k, fuzz); line map 4 states × 3 styles × w36/76; 90 state goldens.
+- ◻ L4 state in cache key + StateRenderer · L5 Doc/Actions/KeyMap/Stops · L5b viewport mode · L6 audit · L7 docs
 - **risks**: dun still renders raw glamour + splitWide (only calls Sanitize) → nothing reaches dun until D4; interacted tail form re-renders whole each frame; tab switch changes height.
-- **blocking decisions**: glyphs (▸/▾, closed folder mark, ‹1/3› layout, focus colour per style incl. notty) — default to plan's proposal unless Carl objects.
+- **blocking decisions**: glyphs and focus as built in L3 (above) — Carl to confirm; notty focus invisible is the open one (alternative: underline, breaks "notty has no SGR").
+- **risks (L3)**: TestLineMapSpike fails at d334510 too (mirror text != Stream on dir-code.md, doc-reply: 3 of 1266 frames; marks all ok) — stale mirror, not L3. a block with a `$$` formula before a form in the same block: renderer keys read the math-rewritten source, IDs the raw one (offsets differ; not seen in corpus/fuzz). Mark Lines of a form in a side-by-side verdict column are rows, not columns. Tree file rows get no glyph pad (folder names shift 2 cells on first interaction).
 
 ### ◐ Fixes (review + audit 2026-11-10)
 - ✅ S1 escape injection: Sanitize before split/heal/cache (c1d5939); DirectiveRenderer.Render calls it (cf7e63f).
