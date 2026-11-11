@@ -84,3 +84,23 @@
   a list read as an opener). Fences nested in lists
   or quotes (not top-level) keep the slow path. Raw `*glamour.TermRenderer`
   users do not get this.
+- 2026-11-11 (deps): chroma v2.27.0, goldmark v1.8.7, lipgloss v2.1.0,
+  x/ansi v0.11.9; glamour stays v2.0.1 (Carl). Changes: chroma closes each
+  escape before a line end (codetitle goldens, SGR only); lipgloss v2.1.0
+  stops shrinking a column at a floor (frame + narrowest cell) first, and
+  internal/tablestream's width model ports it (TestWidthModel; on the old
+  model such tables fell back to whole renders, bytes stayed exact).
+- 2026-11-11 (perf): NewRenderer's glamour renderers (outer, inner) use
+  chroma formatter `bubbleteandmd-terminal256` (chromafmt.go): stock
+  `terminal256` with each style's escape table built once per style
+  pointer, learned from one stock Format call. `terminal256` is not
+  replaced. Registered with sync.Once at the first NewRenderer; chroma's
+  formatter registry is a map with no lock, so that call must come before
+  other goroutines render code. caller opts come after it and can name
+  another formatter. Stock is not deterministic on a palette tie (chroma
+  v2.27.0 still has it; 20 of 75 chroma styles, glamour dark Comment
+  241|242); the cached table keeps the first choice for the process.
+  Tests: byte-equal for every style with no tie on 108 code samples;
+  for tied styles every cached escape is one stock can write; glamour
+  renders of the corpus equal in every glamour style with tied escapes
+  read as one.

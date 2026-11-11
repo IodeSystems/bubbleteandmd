@@ -59,11 +59,17 @@ forms-20k bench used plain glamour, not DirectiveRenderer.
 - Carl 2026-11-11: B1 code = approximate chunked Frame + exact Final (lines never move; seam colours may change at end) · B2 tables = T5 exact row splice, whole render on width change · B3 = draft upstream issue texts only, Carl files them.
 
 ### ◐ Deps + local caches (Carl 2026-11-11)
-- Bump to latest tags: chroma 2.27, goldmark 1.8.x, lipgloss 2.1.0, x/ansi 0.11.9; glamour stays v2.0.1 (v2.0.2 tag request drafted for Carl).
-- ◐ 5 fence-language cache in DirectiveRenderer: unknown/empty lang → `text` (colours only change) — worktree agent.
-- ◻ 4 cached terminal256 formatter under a new chroma name via glamour.WithChromaFormatter (no shared value changed); prototype byte-equal, small blocks ~5× faster (scratchpad fmt4/).
-- Upstream: report only what reproduces on latest (memory rule); 6 drafts left in scratchpad upstream-issues.md for Carl.
-- **next**: merge 5 → bump + 4 → invariants + bench on M1 → ask Carl v0.3.0.
+- ✅ Bump (a381e0d): chroma 2.14.0→2.27.0, goldmark 1.7.8→1.8.7, lipgloss 2.0.4→2.1.0, x/ansi 0.11.7→0.11.9; glamour v2.0.1. go directive 1.26.7.
+  Goldens: codetitle_{dark,light}_{36,76} SGR only (chroma closes escapes before "\n"). dun higher on indirect: goldmark-emoji 1.0.6, x/sync 0.24.0, x/exp/slice v0.1.0 (MVS in dun picks those).
+- ✅ tablestream width model ports lipgloss 2.1.0 minWidth floor (6199992; TestWidthModel, NOTICE).
+- ✅ 5 fence-language cache (17bb6d3).
+- ✅ 4 cached formatter `bubbleteandmd-terminal256` (ccd1caf, chromafmt.go). Finding: stock terminal256 is not deterministic on palette ties (20/75 chroma styles, glamour dark Comment 241|242); cached keeps the first choice per process.
+- ✅ M1 Max at ccd1caf: vet clean; full `go test` all ok except TestRendererPlain (fuzz-47, pre-existing since 17bb6d3: test did not expect the fence-lang rewrite; fixed in 4f5942c; root package rerun on M1 with the fix: ok, 608 s).
+  Bench (bench/results/llx-method-m1max-ccd1caf.md) directive w78 f88f0d4 → ccd1caf: code-50k frame 4906→4357, token 20864→18455, forms-20k 3298→2712, table-20k 901→814, long-100k 3223→2805, answer-20k frame 541→469 ms. Still 2.7-76× llx M1 (thread-30 316 vs 118; code-50k token 18455 vs 242).
+- Upstream: report only what reproduces on latest (memory rule); 6 drafts left in scratchpad upstream-issues.md for Carl. Candidate: chroma findClosest tie (still on v2.27.0).
+- **next**: M1 results → ask Carl v0.3.0.
+- **risks**: formatter registry write is unlocked (first NewRenderer before concurrent renders; documented on NewRenderer). Tied colours differ between processes (as stock).
+- **optional extensions**: deterministic tie-break (lowest palette index) in the cached formatter — changes bytes vs stock's random pick, needs Carl.
 
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
