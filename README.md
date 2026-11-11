@@ -5,7 +5,7 @@ Streaming Markdown for terminal programs built on
 ideas in [llx-markdown](https://github.com/rsaryev/llx-markdown) (MIT; see
 NOTICE), for the terminal. First user: [dun](https://github.com/iodesystems/dun).
 
-Status: scaffold. Nothing works yet.
+Status: layer 1 (streaming core: `NewStream`, `Frame`, `Final`) in v0.1.0. Layers 2-3 in progress.
 
 ## Problem
 

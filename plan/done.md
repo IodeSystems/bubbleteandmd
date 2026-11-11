@@ -1,0 +1,34 @@
+# Done
+
+## ✅ 0. Measure glamour whole-document render cost
+Result (bench/, glamour v2.0.1, dun options render.go:84, Ryzen 9 3900X): linear ~2.3–2.6 ms per 1k chars;
+10k = 23 ms, 25k = 57 ms, 100k = 230–262 ms per render. One render > 33 ms (one 30 Hz frame) past ~13k chars.
+100k reply at 1 render/frame: ~2900 s CPU over an ~833 s stream. Corpus is synthetic (bench/testdata/reply.md).
+
+## ✅ 1. Streaming core — v0.1.0 (2026-11-10)
+splitter (REOPENED = 2) + per-block cache (source, width, style) + healer + glamour per block + join.
+Invariant test: at every chunk boundary, final streamed frame == whole-doc glamour render; healed text never in stored source.
+Join rule (planner, from glamour v2.0.1 source, unverified): block i>0 rendered as "<!-- -->\n\n"+block so the
+first node has a previous sibling; strip doc prefix/suffix P,S per render; concat; wrap P…S. No footnotes in
+glamour (GFM+DefinitionList only) → `[^x]:` is a link-ref def → whole-doc block. Splitter must not cut before `: ` (deflist).
+DAG:
+- ✅ N1 join spike `internal/spike/join_spike_test.go`: 102/102 (17 docs × dark/light/notty × w40/80) with fixed rule:
+  seg i>0 = sentinel + seg + "\n" + all link-ref defs re-emitted; strip P,S; skip empty pieces; if prev piece ends
+  without "\n", drop its last line's visible width in cells from the next piece's first line; wrap P…S.
+  Untested: fences in list items, wrapped text in lists, other widths. Cell-dropping is fragile → N7 must cover.
+- ◻ S1 not needed (D3 = one root package; internal/ for splitter, healer, lru).
+- ✅ N2 internal/corpus: 14 llx docs + emoji.md (Go-only), 10 scenarios, mulberry32, prefixes cut on rune boundaries. Scenario bytes not checked vs TS.
+- ◐ N3 port blocks.ts splitter, REOPENED=2 (opus).
+- ✅ N4 internal/heal: 42/43 heal.test.ts cases (the cache-linearity test dropped: no cache, rescans per call). CRLF fences never closed (llx parity).
+- ✅ N5 internal/lru: count bound only (no weight).
+- ✅ N6 root stream.go: Renderer, NewCache, NewStream(r,key,c), Frame (heals tail only), Final; internal/join (rule + tests).
+- ✅ N7 stream_test.go TestInvariant: docs + scenarios (12k) + 300 fuzz × frame/line (+token, scenarios 4k, not -short)
+  × dark/light/notty × w40/78/98: Frame == Render(heal.Close(p)), Final == Render(p), cache/splitter see raw only.
+  Fixed: DropCells keeps empty SGR run (code block before heading/hr). No D1 merge. Chroma tie colours untied in test (docs/decisions.md).
+- ✅ N9 bench/stream_bench_test.go: Frame 1.3–3.0 ms at 10k–100k vs whole 28–314 ms. ◻ N10 docs (README status).
+- ✅ N3 internal/blocks · ✅ N8 goldmark differential (no mismatches).
+- **next**: N6+N7 result → ship layer 1 (Carl 2026-11-10: ship layer 1 first, then layer 2). Before tag/push: confirm version + push with Carl; then message dun-bf version + API.
+- **risks**: SGR pen carry across blocks (margin.go:159-201); sentinel may emit bytes; scanner written for remark, parser here is goldmark; dun's renderAnswer/splitWide is not one whole-doc render, so the invariant does not cover dun's wide path; token-prefix invariant is O(n²).
+- **blocking decisions**: D4 splitWide ownership (dun-bf, open). D6 default: token-prefix run skipped under `-short` (assumption).
+- **optional extensions**: holdHeight-style no-shrink; splitWide port.
+

@@ -4,3 +4,27 @@
   bubbletea programs can use it and dun pins it like its other dependencies.
 - 2026-11-10 (Carl): keep llx-markdown's directive syntax unchanged, so one
   model output renders in both.
+- 2026-11-10 (Carl, D3): one root package `bubbleteandmd` holds the public
+  API; splitter, healer, join and lru stay in internal/.
+- 2026-11-10: layer-1 API is `Renderer`, `NewCache`, `NewStream(r, key, c)`,
+  `Stream.Frame`, `Stream.Final`. The cache key is (key, block source, block
+  is first): a block at offset 0 renders without the join sentinel, so the
+  same source renders differently there. Only blocks before the splitter's
+  last two are cached; the tail is rendered each call.
+- 2026-11-10: Frame heals the tail only (`heal.Close(src[tailOffset:])`),
+  not the whole text. The invariant test checks, at every prefix, that this
+  equals `heal.Close(src)` with the stable blocks unchanged, so healed text
+  never reaches a stable block or a cache key.
+- 2026-11-10: join keeps glamour's empty styled run (`ESC[..m ESC[m`) when
+  it drops the cells the previous block left on an open line. Found by the
+  invariant: a code block followed by a heading or `---` (light and dark
+  styles) lost 14 bytes. No D1 merge was needed; every element kind joins
+  byte-equal on the corpus, scenarios and 300 fuzz docs.
+- 2026-11-10: glamour's whole render is not deterministic in code blocks.
+  chroma v2.14.0 `findClosest` ranges over a map, so a colour equally far
+  from two 256-colour entries gets either, per code block, per render (dark
+  Comment #676767 -> 241|242, light Operator #FF2626 -> 9|196). glamour
+  v2.0.1 also registers its chroma theme once per process, from the first
+  style that renders a code block. The invariant maps those two pairs to one
+  code on both sides before comparing. A cached block keeps one choice, so
+  Stream output flickers less than whole renders do.
