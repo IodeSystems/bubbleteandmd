@@ -2,12 +2,14 @@ package bubbleteandmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"math"
 	"reflect"
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -126,6 +128,32 @@ func closest(tab map[chroma.Colour]string, c chroma.Colour) []string {
 // for it (chroma entryToEscapeSequence after clearBackground).
 func escapes(t *testing.T, style *chroma.Style) map[chroma.TokenType][]string {
 	t.Helper()
+	return escapesPick(t, style, func(e []string) []string { return e })
+}
+
+// escapeIndex is the palette index in a 256 colour escape.
+func escapeIndex(esc string) int {
+	var n int
+	if _, err := fmt.Sscanf(esc[strings.LastIndex(esc, ";")+1:], "%dm", &n); err != nil {
+		panic(err)
+	}
+	return n
+}
+
+// lowestIndex keeps the escape with the lowest palette index.
+func lowestIndex(e []string) []string {
+	best := e[0]
+	for _, x := range e[1:] {
+		if escapeIndex(x) < escapeIndex(best) {
+			best = x
+		}
+	}
+	return []string{best}
+}
+
+// escapesPick is escapes with pick applied to the candidates of each colour.
+func escapesPick(t *testing.T, style *chroma.Style, pick func([]string) []string) map[chroma.TokenType][]string {
+	t.Helper()
 	fg, bg := palette256(t)
 	b := style.Builder()
 	e := b.Get(chroma.Background)
@@ -150,10 +178,10 @@ func escapes(t *testing.T, style *chroma.Style) map[chroma.TokenType][]string {
 		}
 		fgs, bgs := []string{""}, []string{""}
 		if e.Colour.IsSet() {
-			fgs = closest(fg, e.Colour)
+			fgs = pick(closest(fg, e.Colour))
 		}
 		if e.Background.IsSet() {
-			bgs = closest(bg, e.Background)
+			bgs = pick(closest(bg, e.Background))
 		}
 		for _, f := range fgs {
 			for _, g := range bgs {
@@ -182,7 +210,7 @@ func ties(esc map[chroma.TokenType][]string) []string {
 // style (table cached). Stock is not deterministic on a tie (see closest).
 func TestCachedFormatterEqual(t *testing.T) {
 	stock := formatters.Get("terminal256")
-	cf := newCachedFormatter(stock)
+	cf := newCachedFormatter()
 	samples := codeSamples()
 	if len(samples) < 20 {
 		t.Fatalf("only %d code samples", len(samples))
@@ -205,6 +233,11 @@ func TestCachedFormatterEqual(t *testing.T) {
 		}
 		if len(ties(esc)) > 0 {
 			tied++
+			for tt, want := range escapesPick(t, st, lowestIndex) {
+				if tab[tt] != want[0] {
+					t.Fatalf("style %s %v: cached %q, lowest index %q", st.Name, tt, tab[tt], want[0])
+				}
+			}
 			continue
 		}
 		for pass := 0; pass < 2; pass++ {
@@ -226,6 +259,62 @@ func TestCachedFormatterEqual(t *testing.T) {
 		}
 	}
 	t.Logf("%d styles (%d with a tie: escapes checked only), %d samples, %d byte checks", len(sts), tied, len(samples), checks)
+}
+
+// TestPaletteEqualsStock: the computed palette has stock's colours and, for
+// a colour listed twice, stock's (later) index.
+func TestPaletteEqualsStock(t *testing.T) {
+	fg, _ := palette256(t)
+	want := map[chroma.Colour]string{}
+	for i, c := range palette {
+		want[c] = "\x1b[38;5;" + strconv.Itoa(i) + "m"
+	}
+	if !reflect.DeepEqual(fg, want) {
+		t.Fatal("palette differs from chroma ttyTables[256]")
+	}
+	if len(candidates) != len(fg) {
+		t.Fatalf("%d candidates, %d stock colours", len(candidates), len(fg))
+	}
+}
+
+// TestCachedFormatterTieBreak: for the styles with a palette tie, the table
+// is the lowest-index choice and equal across 50 fresh formatters (stock
+// differs from build to build); for the others it is stock's bytes.
+func TestCachedFormatterTieBreak(t *testing.T) {
+	stock := formatters.Get("terminal256")
+	tied := 0
+	for _, st := range testStyles(t) {
+		esc := escapes(t, st)
+		first := newCachedFormatter().table(st)
+		if len(ties(esc)) > 0 {
+			tied++
+			for tt, want := range escapesPick(t, st, lowestIndex) {
+				if first[tt] != want[0] {
+					t.Fatalf("style %s %v: %q, lowest index %q", st.Name, tt, first[tt], want[0])
+				}
+			}
+			for i := 0; i < 50; i++ {
+				if !reflect.DeepEqual(newCachedFormatter().table(st), first) {
+					t.Fatalf("style %s: build %d differs", st.Name, i)
+				}
+			}
+			continue
+		}
+		var toks []chroma.Token
+		for _, tt := range st.Types() {
+			toks = append(toks, chroma.Token{Type: tt, Value: "x\ny"})
+		}
+		var a, b bytes.Buffer
+		_ = stock.Format(&a, st, chroma.Literator(toks...))
+		_ = newCachedFormatter().Format(&b, st, chroma.Literator(toks...))
+		if a.String() != b.String() {
+			t.Fatalf("style %s: no tie, but differs from stock", st.Name)
+		}
+	}
+	if tied == 0 {
+		t.Fatal("no styles with a tie")
+	}
+	t.Logf("%d styles with a tie", tied)
 }
 
 // TestRendererChromaFormatter: glamour with the cached formatter renders

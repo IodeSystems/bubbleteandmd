@@ -104,3 +104,15 @@
   for tied styles every cached escape is one stock can write; glamour
   renders of the corpus equal in every glamour style with tied escapes
   read as one.
+- 2026-11-11 (fix): `bubbleteandmd-terminal256` breaks palette ties by the
+  lowest palette index, in every process (Carl). Supersedes the "keeps the
+  first choice for the process" line above. The table is built in
+  chromafmt.go from its own xterm 256 palette (not learned from one stock
+  call): nearest by chroma `Colour.Distance`, ascending index, strict `<`.
+  A colour listed twice in the palette (#ff0000: 9 and 196) is one
+  candidate with the later index, as in stock's map, so a style with no tie
+  writes stock's bytes. Tests: palette equals chroma's table; the 20 tied
+  styles (of 75) give the lowest-index table across 50 fresh builds; the
+  rest are byte-equal to stock. Stream/Renderer invariants with NewRenderer
+  compare without `untie`; `untie` stays where raw glamour (stock
+  terminal256) is the reference.

@@ -180,6 +180,12 @@ func TestInvariant(t *testing.T) {
 // checkStream streams prefixes through one Stream and returns it.
 func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, passed *atomic.Int64) *Stream {
 	t.Helper()
+	// Raw glamour (stock terminal256) breaks colour ties at random: untie.
+	// NewRenderer's cached formatter breaks them by lowest index.
+	un := func(s string) string { return s }
+	if _, raw := r.(*glamour.TermRenderer); raw {
+		un = untie
+	}
 	cur := ""
 	c := NewCache(256)
 	c.put = func(source string) {
@@ -236,17 +242,17 @@ func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, 
 					t.Fatalf("prefix len %d: %s spliced from code chunks, tail is not a growing fence: %q", len(p), k.name, tailOf(p))
 				}
 				fenceChecks.Add(1)
-				if untie(got) != untie(k.want) {
+				if un(got) != un(k.want) {
 					fenceDiffers.Add(1)
-					if !sgrOnly(untie(k.want), untie(got)) {
-						t.Fatalf("prefix len %d: Frame of a growing fence differs in more than SGR: %s\nprefix: %q", len(p), firstDiff(untie(k.want), untie(got)), tailOf(p))
+					if !sgrOnly(un(k.want), un(got)) {
+						t.Fatalf("prefix len %d: Frame of a growing fence differs in more than SGR: %s\nprefix: %q", len(p), firstDiff(un(k.want), un(got)), tailOf(p))
 					}
 				}
 				passed.Add(1)
 				continue
 			}
-			if got != k.want && untie(got) != untie(k.want) {
-				t.Fatalf("prefix len %d: %s != whole render: %s\nprefix: %q", len(p), k.name, firstDiff(untie(k.want), untie(got)), tailOf(p))
+			if got != k.want && un(got) != un(k.want) {
+				t.Fatalf("prefix len %d: %s != whole render: %s\nprefix: %q", len(p), k.name, firstDiff(un(k.want), un(got)), tailOf(p))
 			}
 			passed.Add(1)
 		}
