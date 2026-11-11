@@ -48,7 +48,7 @@ forms-20k bench used plain glamour, not DirectiveRenderer.
 - ✅ N2 code splice: raw 0%; with pen-carry repair exact only at safe cuts; cheap predictor 96% precision → not exact. Whole lex 77 ms of 212 ms at 50k.
 - ✅ N3 tables: widths settle by row ≤21; rows splice byte-equal 100% when widths stable; width check 0.35 ms/160 rows.
 - M1 Max same-machine (bench/results/llx-m1max-*.md vs llx-method-m1max-*.md): ours 5-139× slower than llx; code-50k stops at 30 s.
-- ◻ N4 tail = one block (after review fixes) · ◻ N5 stable-piece memo + incremental Sanitize · ◻ N6 code chunker (B1) · ◻ N7 table path (B2) · ◻ N8 bench rerun + DirectiveRenderer column · ◻ N9 docs
+- ◻ N4 tail = one block (after review fixes) · ◻ N5 stable-piece memo + incremental Sanitize · ◐ N6 code chunker (B1): internal/codestream.Fence done (code-50k 3.9 ms/frame warm vs 125 ms whole; 28758/28764 chunked frames byte-equal); next: wire into Stream after N4 · ◻ N7 table path (B2) · ◻ N8 bench rerun + DirectiveRenderer column · ◻ N9 docs
 - Carl 2026-11-11: B1 code = approximate chunked Frame + exact Final (lines never move; seam colours may change at end) · B2 tables = T5 exact row splice, whole render on width change · B3 = draft upstream issue texts only, Carl files them.
 
 ## Decisions / assumptions
