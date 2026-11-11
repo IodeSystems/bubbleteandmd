@@ -10,6 +10,7 @@ import (
 	"github.com/iodesystems/bubbleteandmd/internal/blocks"
 	"github.com/iodesystems/bubbleteandmd/internal/directive"
 	"github.com/iodesystems/bubbleteandmd/internal/join"
+	"github.com/iodesystems/bubbleteandmd/internal/tablestream"
 )
 
 // DirectiveRenderer renders Markdown as glamour does, and draws
@@ -28,6 +29,11 @@ type DirectiveRenderer struct {
 	outer target
 	// inners: one glamour renderer per inner content width, margin 0.
 	inners map[int]*target
+	// pane: wide blocks are cut here (WideBlocks; 0: off). wides: their
+	// renderers by wrap width; nat measures wide tables.
+	pane  int
+	wides map[int]*target
+	nat   *tablestream.Natural
 }
 
 // target is one glamour renderer and the frame its directive pieces get.
@@ -123,11 +129,13 @@ func (sc scope) key(rel int) string {
 }
 
 // parsed is one top-level block: its source with `$$` formulas made math
-// fences, and the first form in it.
+// fences, and the first form in it. wide: the wrap width of a wide block
+// (wide.go), else 0.
 type parsed struct {
 	src  string
 	d    directive.Directive
 	form bool
+	wide int
 }
 
 // piece is a rendered piece and the marks in it, lines counted from its
@@ -148,8 +156,11 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 	for i, b := range bs {
 		src, math := mathFences(b.Source)
 		d, ok := directive.Parse(src)
-		ps[i] = parsed{src, d, ok}
-		if ok || math {
+		ps[i] = parsed{src: src, d: d, form: ok}
+		if !ok && !math && t == &r.outer {
+			ps[i].wide = r.wideWidth(src)
+		}
+		if ok || math || ps[i].wide > 0 {
 			plain = false
 		}
 	}
@@ -160,7 +171,15 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 	var pieces []piece
 	for i, p := range ps {
 		var err error
-		if pieces, err = r.block(t, pieces, p, bs[i].Offset, first && i == 0, sc); err != nil {
+		if p.wide > 0 {
+			var text string
+			if text, err = r.widePiece(p.src, first && i == 0, p.wide); err == nil && text != "" {
+				pieces = append(pieces, piece{text: text})
+			}
+		} else {
+			pieces, err = r.block(t, pieces, p, bs[i].Offset, first && i == 0, sc)
+		}
+		if err != nil {
 			return "", nil, err
 		}
 	}

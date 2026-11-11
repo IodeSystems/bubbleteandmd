@@ -125,6 +125,10 @@ func DropCells(s string, n int) string {
 	return kept.String() + s[i:]
 }
 
+// EscapeEnd is escEnd, for callers that walk rendered lines as DropCells
+// does.
+func EscapeEnd(s string, i int) (end int, sgr, ok bool) { return escEnd(s, i) }
+
 // escEnd returns the end of the escape sequence at s[i:], or 0 when there
 // is none there. sgr is true for CSI ending in 'm'. ok is false for a
 // sequence that s ends inside (end is then len(s)). CSI ends at a byte in
