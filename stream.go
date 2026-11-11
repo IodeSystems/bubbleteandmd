@@ -1,6 +1,7 @@
 package bubbleteandmd
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/iodesystems/bubbleteandmd/internal/blocks"
@@ -145,6 +146,9 @@ func (s *Stream) block(source string, first bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// source is a substring of src: a copy, so the key does not keep the
+	// whole text of this frame alive.
+	k.source = strings.Clone(source)
 	s.cache.store(k, v)
 	return v, nil
 }

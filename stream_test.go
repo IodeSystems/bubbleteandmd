@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"unicode/utf16"
+	"unsafe"
 
 	"charm.land/glamour/v2"
 	"github.com/iodesystems/bubbleteandmd/internal/blocks"
@@ -200,4 +201,32 @@ func tailOf(s string) string {
 		return "…" + s[len(s)-200:]
 	}
 	return s
+}
+
+// TestCacheKeyOwnsSource: a cached key must not point into the Frame text.
+// A substring would keep the whole text of that frame alive while the key
+// stays in the cache: about blocks x length / 2 bytes over a reply.
+func TestCacheKeyOwnsSource(t *testing.T) {
+	r, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewCache(100)
+	var src string
+	c.put = func(source string) {
+		lo := uintptr(unsafe.Pointer(unsafe.StringData(src)))
+		p := uintptr(unsafe.Pointer(unsafe.StringData(source)))
+		if p >= lo && p < lo+uintptr(len(src)) {
+			t.Errorf("cache key %q points into the frame text (len %d)", source, len(src))
+		}
+	}
+	s := NewStream(r, "k", c)
+	text := ""
+	for i := range 6 {
+		text += fmt.Sprintf("para %d\n\n", i)
+		src = strings.Clone(text)
+		if _, err := s.Frame(src); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
