@@ -117,6 +117,8 @@ type Stream struct {
 	tables  bool
 	table   *tablestream.Table
 	tableAt int
+	// tableW: the wrap width table renders at (a wide table, WideBlocks), or 0.
+	tableW int
 	// fence renders a growing code fence tail in Frame; plainOpen and
 	// plain: whether the last opening line seen draws as plain glamour
 	// (not a form) with a *DirectiveRenderer.
@@ -343,16 +345,30 @@ func (s *Stream) tailPiece(tail string, at int, last, healed bool) (string, erro
 	if !s.tables || !last || !strings.HasPrefix(tail, "|") {
 		return s.piece(tail, first)
 	}
-	if s.table == nil || s.tableAt != at {
-		s.table, s.tableAt = tablestream.New(s.gopts), at
+	// A wide table (DirectiveRenderer.WideBlocks) grows through the wide
+	// renderer at its own width; its lines are cut as Render cuts them.
+	var r Renderer = s.r
+	opts, wide, cut := s.gopts, 0, func(p string) string { return p }
+	if dr, ok := s.r.(*DirectiveRenderer); ok {
+		t, o, ok, err := dr.wideTable(tail)
+		if err != nil {
+			return "", err
+		}
+		if ok {
+			r, opts, wide, cut = t.g, o, o.WordWrap, dr.cutLines
+		}
+	}
+	if s.table == nil || s.tableAt != at || s.tableW != wide {
+		s.table, s.tableAt, s.tableW = tablestream.New(opts), at, wide
 	}
 	before := s.table.Stats.Spliced
-	out, err := s.table.Render(join.Input(tail, first), s.r)
+	out, err := s.table.Render(join.Input(tail, first), r)
 	if err != nil {
 		return "", err
 	}
 	s.stats.tableSpliced += s.table.Stats.Spliced - before
-	return join.Strip(out, s.p, s.s)
+	piece, err := join.Strip(out, s.p, s.s)
+	return cut(piece), err
 }
 
 // fenceOpenRe: a fenced code block's opening line (CommonMark: up to three
