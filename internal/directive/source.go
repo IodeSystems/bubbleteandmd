@@ -225,27 +225,47 @@ func dequote(s string) string {
 var itemHead = regexp.MustCompile(`^([ \t]*)([-+*]|\d{1,9}[.)])([ \t]*)([^\r\n]*)`)
 
 // dedentItem returns a list item's source as the Markdown it holds: the marker
-// off its first line, the content indent off the rest.
+// off its first line, the content indent off the rest. A tab in an indent
+// counts to the next 4-column stop (CommonMark); an indent that keeps a tab
+// in part keeps the rest of it as spaces.
 func dedentItem(s string) string {
 	lines := strings.SplitAfter(s, "\n")
 	m := itemHead.FindStringSubmatch(lines[0])
 	if m == nil {
 		return s
 	}
-	pad := len(m[3])
+	lead := expandIndent(m[1], 0)
+	mark := len(lead) + len(m[2])
+	gap := expandIndent(m[3], mark)
+	pad := len(gap)
 	if m[4] == "" || pad > 4 {
 		pad = min(pad, 1)
 	}
-	width := len(m[1]) + len(m[2]) + max(pad, 1)
-	lines[0] = lines[0][len(m[1])+len(m[2])+pad:]
+	width := mark + max(pad, 1)
+	lines[0] = gap[pad:] + lines[0][len(m[0])-len(m[4]):]
 	for i := 1; i < len(lines); i++ {
-		n := 0
-		for n < width && n < len(lines[i]) && lines[i][n] == ' ' {
-			n++
-		}
-		lines[i] = lines[i][n:]
+		ws := len(lines[i]) - len(strings.TrimLeft(lines[i], " \t"))
+		indent := expandIndent(lines[i][:ws], 0)
+		lines[i] = indent[min(width, len(indent)):] + lines[i][ws:]
 	}
 	return strings.Join(lines, "")
+}
+
+// expandIndent returns ws (spaces and tabs) as spaces, a tab to the next
+// 4-column stop, for ws that starts at column col.
+func expandIndent(ws string, col int) string {
+	if !strings.Contains(ws, "\t") {
+		return ws
+	}
+	var b strings.Builder
+	for i := 0; i < len(ws); i++ {
+		n := 1
+		if ws[i] == '\t' {
+			n = 4 - (col+b.Len())%4
+		}
+		b.WriteString(strings.Repeat(" ", n))
+	}
+	return b.String()
 }
 
 // trimBody drops leading blank lines and trailing white space.

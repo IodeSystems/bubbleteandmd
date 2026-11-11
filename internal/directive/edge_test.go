@@ -57,3 +57,22 @@ func TestEdgeTitledCodeBody(t *testing.T) {
 	d := mustParse(t, "  ```go main.go\n  x := 1\n    y\n  ```", KindCodeTitle)
 	eq(t, "code", *d.CodeTitle, CodeTitle{"main.go", "go", "x := 1\n  y\n"})
 }
+
+// TestEdgeTabContinuation: a tab in an item's continuation indent counts to
+// the next 4-column stop (CommonMark), so a tab-indented paragraph stays a
+// paragraph, not indented code.
+func TestEdgeTabContinuation(t *testing.T) {
+	d := mustParse(t, "> [!STEPS]\n\n- **One** step\n\n\tcontinued para\n- **Two** x\n", KindSteps)
+	eq(t, "items", d.Steps.Items, []Step{{"One", "", "step\n\n  continued para"}, {"Two", "", "x"}})
+	d = mustParse(t, "> [!STEPS]\n\n1.\t**One** step\n\n\tmore\n", KindSteps)
+	eq(t, "items", d.Steps.Items, []Step{{"One", "", "step\n\nmore"}})
+	for _, c := range []struct{ in, want string }{
+		{"- a\n\n\tb\n", "a\n\n  b\n"},
+		{"- a\n\n  \tb\n", "a\n\n  b\n"},
+		{"1.\ta\n\n\tb\n", "a\n\nb\n"},
+		{"- a\n\n\t\tcode\n", "a\n\n      code\n"},
+		{"- a\n\n  b\n", "a\n\nb\n"},
+	} {
+		eq(t, "dedent "+c.in, dedentItem(c.in), c.want)
+	}
+}
