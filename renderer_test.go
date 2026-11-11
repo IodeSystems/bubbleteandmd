@@ -256,7 +256,8 @@ func frameEqualsFinal(t *testing.T, r Renderer, text string) bool {
 }
 
 // TestRendererPlain: a document with no form and no `$$` formula renders
-// byte-equal to plain glamour.
+// byte-equal to plain glamour of the document with unknown and empty fence
+// languages made `text` (fencelang.go; Carl accepted the colour change).
 func TestRendererPlain(t *testing.T) {
 	var docs []invCase
 	for _, d := range corpus.Docs() {
@@ -285,7 +286,7 @@ func TestRendererPlain(t *testing.T) {
 					continue
 				}
 				checked++
-				want, err := g.Render(d.text)
+				want, err := g.Render(langs.plainUnknownLangs(d.text))
 				if err != nil {
 					t.Fatal(err)
 				}
