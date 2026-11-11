@@ -1,6 +1,12 @@
 package join
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"charm.land/glamour/v2"
+	"github.com/charmbracelet/x/ansi"
+)
 
 func TestAffixes(t *testing.T) {
 	p, s, err := Affixes("\n\n")
@@ -53,6 +59,14 @@ func TestDropCells(t *testing.T) {
 		// whole render keeps it after the previous element's cells.
 		{"empty run kept", "  " + empty + cell + cell + cell, 4, empty + cell},
 		{"escape after nth cell kept", "ab\x1b[1mc", 2, "\x1b[1mc"},
+		// OSC 8 (ended by BEL, as glamour writes it, or by ST) is no cell
+		// and is kept: the kept cells stay inside their link.
+		{"osc 8 BEL is no cell", "\x1b]8;;http://x\aab\x1b]8;;\acd", 2, "\x1b]8;;http://x\a\x1b]8;;\acd"},
+		{"osc 8 ST is no cell", "\x1b]8;;http://x\x1b\\ab\x1b]8;;\x1b\\cd", 1, "\x1b]8;;http://x\x1b\\b\x1b]8;;\x1b\\cd"},
+		{"non-SGR CSI is no cell", "\x1b[Kab\x1b[31mc", 1, "\x1b[Kb\x1b[31mc"},
+		{"incomplete CSI", "a\x1b[3", 2, ""},
+		{"incomplete OSC", "a\x1b]8;;x", 3, ""},
+		{"lone ESC", "a\x1b", 2, ""},
 	} {
 		if got := DropCells(c.in, c.n); got != c.want {
 			t.Errorf("%s: DropCells(%q, %d) = %q, want %q", c.name, c.in, c.n, got, c.want)
@@ -75,6 +89,31 @@ func TestJoin(t *testing.T) {
 	} {
 		if got := Join("P", "S", c.pieces); got != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// TestDropCellsGlamourLinks: on glamour's own lines with links (OSC 8 ended
+// by BEL), dropping k cells leaves the text after the kth cell.
+func TestDropCellsGlamourLinks(t *testing.T) {
+	r, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := r.Render("[x](http://e.com) see [a long label](http://e.com/y) <https://e.com/z>\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "\x1b]8;") {
+		t.Fatalf("no OSC 8 in glamour output %q", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		text := []rune(ansi.Strip(line))
+		for k := 0; k <= len(text); k++ {
+			got := DropCells(line, k)
+			if s := ansi.Strip(got); s != string(text[k:]) {
+				t.Errorf("DropCells(%q, %d) shows %q, want %q", line, k, s, string(text[k:]))
+			}
 		}
 	}
 }

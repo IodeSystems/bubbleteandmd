@@ -90,16 +90,25 @@ func Join(p, s string, pieces []string) string {
 // ESC[..m c ESC[m takes its opening and closing sequences with it. An empty
 // styled run (ESC[..m ESC[m, nothing between) is not a cell: glamour writes
 // one where an element starts, and the whole render has it too, so it is
-// kept. Bytes count as cells: glamour pads with single-width spaces.
+// kept. Other escape sequences (OSC 8 links, ended by BEL or ESC \, and
+// CSI that is not SGR) are no cells and are kept, so kept cells stay inside
+// their link. An incomplete sequence at the end is dropped. Bytes count as
+// cells: glamour pads with single-width spaces.
 func DropCells(s string, n int) string {
 	var kept strings.Builder
 	i := 0
 	for n > 0 && i < len(s) {
-		if j := sgrEnd(s, i); j > 0 {
-			if k := sgrEnd(s, j); k > 0 && s[j:k] == "\x1b[m" {
-				kept.WriteString(s[i:k])
-				i = k
-				continue
+		if j, sgr, ok := escEnd(s, i); j > 0 {
+			switch {
+			case !ok:
+				// Incomplete: it runs to the end.
+			case !sgr:
+				kept.WriteString(s[i:j])
+			default:
+				if k, _, _ := escEnd(s, j); k > 0 && s[j:k] == "\x1b[m" {
+					kept.WriteString(s[i:k])
+					j = k
+				}
 			}
 			i = j
 			continue
@@ -116,15 +125,35 @@ func DropCells(s string, n int) string {
 	return kept.String() + s[i:]
 }
 
-// sgrEnd returns the end of the CSI sequence at s[i:], or 0 when there is
-// none there.
-func sgrEnd(s string, i int) int {
-	if i+1 >= len(s) || s[i] != 0x1b || s[i+1] != '[' {
-		return 0
+// escEnd returns the end of the escape sequence at s[i:], or 0 when there
+// is none there. sgr is true for CSI ending in 'm'. ok is false for a
+// sequence that s ends inside (end is then len(s)). CSI ends at a byte in
+// 0x40..0x7E; OSC at BEL or ESC \; any other ESC X is two bytes.
+func escEnd(s string, i int) (end int, sgr, ok bool) {
+	if i >= len(s) || s[i] != 0x1b {
+		return 0, false, false
 	}
-	j := i + 2
-	for j < len(s) && s[j] != 'm' {
-		j++
+	if i+1 >= len(s) {
+		return len(s), false, false
 	}
-	return j + 1
+	switch s[i+1] {
+	case '[':
+		for j := i + 2; j < len(s); j++ {
+			if s[j] >= 0x40 && s[j] <= 0x7e {
+				return j + 1, s[j] == 'm', true
+			}
+		}
+		return len(s), false, false
+	case ']':
+		for j := i + 2; j < len(s); j++ {
+			if s[j] == 0x07 {
+				return j + 1, false, true
+			}
+			if s[j] == 0x1b && j+1 < len(s) && s[j+1] == '\\' {
+				return j + 2, false, true
+			}
+		}
+		return len(s), false, false
+	}
+	return i + 2, false, true
 }
