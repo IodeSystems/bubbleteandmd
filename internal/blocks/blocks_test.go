@@ -146,7 +146,7 @@ func TestSplitterKeepsBlocks(t *testing.T) {
 	src := docs(t)["reply.md"]
 	var s Splitter
 	before := s.Split(src[:len(src)/2])
-	after := s.Split(src[: len(src)/2+40])
+	after := s.Split(src[:len(src)/2+40])
 	kept := 0
 	for i := range before {
 		if i < len(after) && before[i] == after[i] {

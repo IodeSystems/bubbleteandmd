@@ -13,6 +13,7 @@ package blocks
 import (
 	"regexp"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -100,6 +101,10 @@ type scan struct {
 	seen bool
 	// dl: a definition list may still be open or be extended (goldmark only).
 	dl bool
+	// dlTerm: a paragraph started while dl was open, and no description has
+	// followed yet. It may be a term; if the next paragraph starts first, it
+	// was not, and the list ended before it.
+	dlTerm bool
 	// stuck: the scan cannot tell what the next lines are; no more cuts.
 	stuck bool
 	// whole: a definition that resolves across blocks; the document stays one block.
@@ -308,15 +313,26 @@ func (s *scan) advance(line string) bool {
 	if descriptionRe.MatchString(line) {
 		// A description joins the paragraph (term) or list above it.
 		s.dl = true
+		s.dlTerm = false
 		return false
 	}
 	if s.dl && cut {
 		// Indented text may continue a description, and a paragraph may be
 		// the next term of the same list.
-		if indent > 0 || startsParagraph(line) {
+		if indent > 0 {
 			return false
 		}
-		s.dl = false
+		if startsParagraph(line) {
+			if s.dlTerm {
+				// The paragraph before had no description: the list ended
+				// before it, and this paragraph starts a new block.
+				s.dl, s.dlTerm = false, false
+				return true
+			}
+			s.dlTerm = true
+			return false
+		}
+		s.dl, s.dlTerm = false, false
 	}
 	return cut
 }
@@ -399,6 +415,24 @@ func lineAt(text string, at int) string {
 	return strings.TrimSuffix(line, "\r")
 }
 
+type tagRes struct{ open, close *regexp.Regexp }
+
+var tagCache sync.Map // lowercase tag name -> tagRes
+
+// tagRegexps returns the open and close tag patterns of tag, compiled once.
+func tagRegexps(tag string) tagRes {
+	if v, ok := tagCache.Load(tag); ok {
+		return v.(tagRes)
+	}
+	q := regexp.QuoteMeta(tag)
+	v := tagRes{
+		open:  regexp.MustCompile(`(?i)<` + q + `(?:>|[\s/][^>]*>)`),
+		close: regexp.MustCompile(`(?i)</` + q + `\s*>`),
+	}
+	tagCache.Store(tag, v)
+	return v
+}
+
 // htmlOpen reports whether raw has a line that opens an HTML tag still open at
 // its end.
 func htmlOpen(raw string) bool {
@@ -417,14 +451,14 @@ func htmlOpen(raw string) bool {
 		}
 		tried[tag] = true
 		rest := raw[m[0]:]
-		q := regexp.QuoteMeta(tag)
+		re := tagRegexps(tag)
 		opened := 0
-		for _, found := range regexp.MustCompile(`(?i)<`+q+`(?:>|[\s/][^>]*>)`).FindAllString(rest, -1) {
+		for _, found := range re.open.FindAllString(rest, -1) {
 			if !strings.HasSuffix(found, "/>") {
 				opened++
 			}
 		}
-		closed := len(regexp.MustCompile(`(?i)</` + q + `\s*>`).FindAllStringIndex(rest, -1))
+		closed := len(re.close.FindAllStringIndex(rest, -1))
 		if opened > closed {
 			return true
 		}
