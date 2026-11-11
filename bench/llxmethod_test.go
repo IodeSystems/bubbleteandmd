@@ -3,6 +3,7 @@ package bench
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/glamour/v2/styles"
 	"github.com/iodesystems/bubbleteandmd"
 	llxcorpus "github.com/iodesystems/bubbleteandmd/internal/corpus"
 )
@@ -121,6 +123,7 @@ func TestLLXMethod(t *testing.T) {
 	type rowKey struct{ scen, pat string }
 	var order []rowKey
 	stream := map[rowKey]map[int]cell{}
+	direct := map[rowKey]map[int]cell{}
 	naive := map[rowKey]map[int]cell{}
 	chars := map[string]int{}
 	updates := map[rowKey]int{}
@@ -137,7 +140,7 @@ func TestLLXMethod(t *testing.T) {
 		for _, p := range pats {
 			k := rowKey{sc.Name, string(p)}
 			order = append(order, k)
-			stream[k], naive[k] = map[int]cell{}, map[int]cell{}
+			stream[k], direct[k], naive[k] = map[int]cell{}, map[int]cell{}, map[int]cell{}
 			steps := prefixes(sc.Text, p)
 			updates[k] = len(steps)
 			for _, w := range widths {
@@ -161,13 +164,33 @@ func TestLLXMethod(t *testing.T) {
 							t.Fatal(err)
 						}
 					})
+				// Directive: the same through NewRenderer, which draws the
+				// forms and tells Stream its glamour options (table path).
+				dr, err := bubbleteandmd.NewRenderer(*styles.DefaultStyles["dark"], w)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, h := range sc.History {
+					if _, err := dr.Render(h); err != nil {
+						t.Fatal(err)
+					}
+				}
+				direct[k][w] = measure(steps,
+					func() {
+						cur = bubbleteandmd.NewStream(dr, fmt.Sprint(w), bubbleteandmd.NewCache(4096))
+					},
+					func(s string) {
+						if _, err := cur.Frame(s); err != nil {
+							t.Fatal(err)
+						}
+					})
 				naive[k][w] = measure(steps, func() {}, func(s string) {
 					if _, err := r.Render(s); err != nil {
 						t.Fatal(err)
 					}
 				})
-				t.Logf("%s %s w%d stream %.0f ms naive %.0f ms (stopped=%v)", k.scen, k.pat, w,
-					stream[k][w].total, naive[k][w].total, naive[k][w].timedOut)
+				t.Logf("%s %s w%d stream %.0f ms directive %.0f ms naive %.0f ms (stopped=%v)", k.scen, k.pat, w,
+					stream[k][w].total, direct[k][w].total, naive[k][w].total, naive[k][w].timedOut)
 			}
 		}
 	}
@@ -215,7 +238,9 @@ func TestLLXMethod(t *testing.T) {
 
 	var b strings.Builder
 	cpu := "unknown"
-	if data, err := os.ReadFile("/proc/cpuinfo"); err == nil {
+	if out, err := exec.Command("sysctl", "-n", "machdep.cpu.brand_string").Output(); err == nil && len(out) > 0 {
+		cpu = strings.TrimSpace(string(out))
+	} else if data, err := os.ReadFile("/proc/cpuinfo"); err == nil {
 		for _, l := range strings.Split(string(data), "\n") {
 			if strings.HasPrefix(l, "model name") {
 				cpu = strings.TrimSpace(l[strings.Index(l, ":")+1:])
@@ -236,7 +261,7 @@ func TestLLXMethod(t *testing.T) {
 	fmt.Fprintf(&b, "- **date:** %s\n- **cpu:** %s (%d threads)\n- **go:** %s\n- **glamour:** charm.land/glamour/v2 %s, dark style, word wrap 78 and 98 (dun's widths)\n- **runs:** %d, median; one warm-up on the first 200 updates; budget %d ms per cell\n\n",
 		time.Now().Format("2006-01-02"), cpu, runtime.NumCPU(), runtime.Version(), glam, runs, budget.Milliseconds())
 	fmt.Fprintf(&b, "## Method\n\nSame as llx `bench/src/run.ts`, `measure.tsx`, `report.ts`: every growing prefix is passed one update at a time; each update is timed alone; **total** is the sum of the updates (the first render and the final non-streaming render are not in it); **p95** is `sorted[floor(0.95*n)]`; the frame budget counts updates over 16.7 ms and over 50 ms, and the longest. The llx timer runs until React is idle (render, commit, effects, DOM writes); ours runs to the return of `Stream.Frame` (heal, split, glamour render of the tail, join) and has no DOM or layout.\n\n")
-	fmt.Fprintf(&b, "- **stream**: `bubbleteandmd.Stream.Frame(prefix)` on one Stream with a fresh 4096-block Cache per pass. `Final` is not timed (llx excludes its finish render too).\n- **naive**: one `TermRenderer.Render(prefix)` of the whole raw prefix per update (what dun does today; no heal).\n- A pass that spends 30000 ms is stopped and not repeated; the cell says how far it got.\n- thread-30: the 30 history replies are rendered once before timing, for both modes, and are not in the totals. llx keeps them mounted (React-memoized); equivalent in spirit.\n- Chunk patterns come from `internal/corpus` (ported from llx `test/chunks.ts`; token seed 42). Scenario text comes from `internal/corpus` `Scenarios()`, ported from `replies.ts`. Byte-equality with the TS output is NOT verified (no TS run allowed), so text-dependent numbers can differ from llx for that reason alone.\n\n")
+	fmt.Fprintf(&b, "- **stream**: `bubbleteandmd.Stream.Frame(prefix)` on one Stream with a fresh 4096-block Cache per pass. `Final` is not timed (llx excludes its finish render too).\n- **directive**: the same Stream over `bubbleteandmd.NewRenderer` (dark style): forms drawn, and a growing tail table served from cached rows (it tells Stream its glamour options).\n- **naive**: one `TermRenderer.Render(prefix)` of the whole raw prefix per update (what dun does today; no heal).\n- A pass that spends 30000 ms is stopped and not repeated; the cell says how far it got.\n- thread-30: the 30 history replies are rendered once before timing, for both modes, and are not in the totals. llx keeps them mounted (React-memoized); equivalent in spirit.\n- Chunk patterns come from `internal/corpus` (ported from llx `test/chunks.ts`; token seed 42). Scenario text comes from `internal/corpus` `Scenarios()`, ported from `replies.ts`. Byte-equality with the TS output is NOT verified (no TS run allowed), so text-dependent numbers can differ from llx for that reason alone.\n\n")
 	fmt.Fprintf(&b, "## Scenarios\n\nAll ten llx scenarios exist in our corpus; none is missing. llx's `answer-10k`/`answer-40k` scaling pair exists too (`corpus.Scaling()`) but is not run here. Patterns as llx: `token` for chat-5k, answer-20k, code-50k; `line` for answer-20k; `frame` for all.\n\n| scenario | text length (bytes; all ASCII) | updates |\n| --- | ---: | --- |\n")
 	seen := map[string]bool{}
 	for _, k := range order {
@@ -254,19 +279,19 @@ func TestLLXMethod(t *testing.T) {
 	}
 	fmt.Fprintf(&b, "\nllx's README gives only nominal sizes (`-5k`, `-20k`, ...) and its `latest.json` only a hash per text, so llx's exact lengths are not known here without running its generator. A generated reply grows by whole blocks until its length reaches the nominal size, so lengths are slightly over nominal.\n\n")
 
-	fmt.Fprintf(&b, "## Whole stream\n\nTotal ms to stream the reply, p95 of one update in brackets. Lower is better.\n\n| | `llx` (M5, bun, DOM) | stream w78 | stream w98 | naive w78 | naive w98 |\n| --- | ---: | ---: | ---: | ---: | ---: |\n")
+	fmt.Fprintf(&b, "## Whole stream\n\nTotal ms to stream the reply, p95 of one update in brackets. Lower is better.\n\n| | `llx` (M5, bun, DOM) | stream w78 | stream w98 | directive w78 | directive w98 | naive w78 | naive w98 |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n")
 	for _, k := range order {
-		fmt.Fprintf(&b, "| %s · %s | %s | %s | %s | %s | %s |\n", k.scen, k.pat, llxTotal[k.scen+" "+k.pat],
-			tot(stream[k][78]), tot(stream[k][98]), tot(naive[k][78]), tot(naive[k][98]))
+		fmt.Fprintf(&b, "| %s · %s | %s | %s | %s | %s | %s | %s | %s |\n", k.scen, k.pat, llxTotal[k.scen+" "+k.pat],
+			tot(stream[k][78]), tot(stream[k][98]), tot(direct[k][78]), tot(direct[k][98]), tot(naive[k][78]), tot(naive[k][98]))
 	}
-	fmt.Fprintf(&b, "\n## Frame budget\n\nUpdates longer than 16.7 ms / longer than 50 ms / the longest update.\n\n| | `llx` (M5, bun, DOM) | stream w78 | stream w98 | naive w78 | naive w98 |\n| --- | ---: | ---: | ---: | ---: | ---: |\n")
+	fmt.Fprintf(&b, "\n## Frame budget\n\nUpdates longer than 16.7 ms / longer than 50 ms / the longest update.\n\n| | `llx` (M5, bun, DOM) | stream w78 | stream w98 | directive w78 | directive w98 | naive w78 | naive w98 |\n| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n")
 	for _, k := range order {
 		l := llxBudget[k.scen+" "+k.pat]
 		if l != "" {
 			l += " ms"
 		}
-		fmt.Fprintf(&b, "| %s · %s | %s | %s | %s | %s | %s |\n", k.scen, k.pat, l,
-			bud(stream[k][78]), bud(stream[k][98]), bud(naive[k][78]), bud(naive[k][98]))
+		fmt.Fprintf(&b, "| %s · %s | %s | %s | %s | %s | %s | %s | %s |\n", k.scen, k.pat, l,
+			bud(stream[k][78]), bud(stream[k][98]), bud(direct[k][78]), bud(direct[k][98]), bud(naive[k][78]), bud(naive[k][98]))
 	}
 	out := b.String()
 	t.Log("\n" + out)
