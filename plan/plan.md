@@ -25,11 +25,13 @@ DAG:
   without "\n", drop its last line's visible width in cells from the next piece's first line; wrap P…S.
   Untested: fences in list items, wrapped text in lists, other widths. Cell-dropping is fragile → N7 must cover.
 - ◻ S1 not needed (D3 = one root package; internal/ for splitter, healer, lru).
-- ◻ N2 port corpora as Go testdata + Go port of the scenario generator (D5).
-- ◻ N3 port blocks.ts splitter, REOPENED=2 (opus) · N4 port heal.ts (sonnet, scope D2) · N5 bounded LRU (haiku).
+- ✅ N2 internal/corpus: 14 llx docs + emoji.md (Go-only), 10 scenarios, mulberry32, prefixes cut on rune boundaries. Scenario bytes not checked vs TS.
+- ◐ N3 port blocks.ts splitter, REOPENED=2 (opus).
+- ✅ N4 internal/heal: 42/43 heal.test.ts cases (the cache-linearity test dropped: no cache, rescans per call). CRLF fences never closed (llx parity).
+- ✅ N5 internal/lru: count bound only (no weight).
 - ◻ N6 stream.Stream (N1,N3,N4,N5) · N7 invariant test every chunk boundary (N2,N6) · N8 splitter vs goldmark differential (N2,N3).
 - ◻ N9 bench Stream vs whole · N10 docs.
-- **next**: N2–N5 in parallel.
+- **next**: N3 result → N6 Stream + N7 invariant, N8 differential.
 - **risks**: SGR pen carry across blocks (margin.go:159-201); sentinel may emit bytes; scanner written for remark, parser here is goldmark; dun's renderAnswer/splitWide is not one whole-doc render, so the invariant does not cover dun's wide path; token-prefix invariant is O(n²).
 - **blocking decisions**: D4 splitWide ownership (dun-bf, open). D6 default: token-prefix run skipped under `-short` (assumption).
 - **optional extensions**: holdHeight-style no-shrink; splitWide port.
