@@ -47,12 +47,20 @@ scrolled up); unconstrained (height 0) → render all, scroll keys return false,
   Fast paths: fence/table render through tailRenderer (RenderState), marks kept from the whole-tail fallback render; held/chunks/rows have no forms.
   `$$` fix: MathFences moved to internal/directive with shifts; renderer keys = RawOffset; IDs (and test formsIn) read MathFences(block) too → keys agree also in tab panels/bodies.
   Tests: TestStreamStateInvariant (5104 line prefixes, 4 states × dark/notty × w40/78: Final and Frame (healed; held/chunked aside) + Marks == RenderState), TestStreamStateCache, TestStateKey, TestStateMathBeforeForm, TestStateFastPaths.
-- ◻ L5 Doc/Actions/KeyMap/Stops · L5b viewport mode · L6 audit · L7 docs
-  **next (L5)**: take from dun (internal/tui, read-only; bubbletea v2 tea.KeyPressMsg): consumed contract (wide.go:309 insideWideKeys:
-  leave nested state AND return false), named actions (keymap.go keyAction, translate :256, label :288 → KeyMap.Label), Stops like
-  focusables/moveFocus (panes.go:198, optional takesTab), optional exported NormalizeKey (tui_input.go:1276). Not taken: modal chain,
-  chords, key scopes, editcore. **blocking decision (Carl, open 2026-11-11)**: whether/how dun's input handling (keymap+translate,
-  editcore kill ring/undo, multiline composer, normalizeKey) splits out into a shared lib — not solidified; L5 builds only what Doc needs.
+- ✅ L5 Doc (bc32fc7; decisions.md 2026-11-11 L5): `NewDoc(r, key, cache)` wraps a Stream, owns State; `Frame/Final`, `Do(Action) bool`,
+  `HandleKey(tea.KeyPressMsg, KeyMap) bool` (only file importing bubbletea: keymap.go), `Focus/FocusLast/Blur/Reset`, `Stops() []Stop{Key,Kind,Line,Height}`,
+  `Focused() (Stop,bool)`, `State()`. Actions focus.next/prev, toggle, move.left/right, focus.leave; `DefaultKeyMap()`, `KeyMap.Label/Action`. Mark += Panels, Folder.
+  Dep: bubbletea v2.1.0 (MVS: ultraviolet, go-runewidth 0.27→0.30, terminfo v1.0.0; dun already higher). No NormalizeKey (reason in decisions.md).
+  Tests (interact_test.go): stops per kind, layout == Stream at every frame + focus keeps widths (dark/light/notty, w36/76), stream order == IDs order
+  (stateDocs, dark/notty), actions per form, consumed/fallthrough, plain Renderer.
+- ◻ L5b viewport mode · L6 audit · L7 docs
+  **next (L5b)**: height > 0 → Doc owns scroll (↑/↓ PgUp/PgDn actions, Focused() line scrolled into view, follow bottom). Seam: Stops/Focused lines are in
+  the last output; ↑/↓ are not in the KeyMap yet. dun adoption: NewStream → NewDoc, Focus when its answer is entered (like insideWide).
+  **blocking decision (Carl, open 2026-11-11)**: whether/how dun's input handling splits out into a shared lib — L5 built only what Doc needs.
+  **risks (L5)**: Stops are stale between a consumed key and the next render (host must render after true); notty focus on a tree whose cursor is a
+  depth-0 file row, and on stacked tabs, has no cue (Carl's notty rule); details stop covers the title only, tabs stop covers all drawn panels;
+  ←/→ wrap (not return false at an edge) — assumed. Doc with no stops yet: Focus false, host must call it again when forms arrive.
+- `go test -short -timeout 60m ./...` at 3e6517b (L5): all ok, root 426 s, vet clean.
 - `go test -short ./...` at 1d9bacc: all ok (root 483 s with -timeout 60m; default 10m timed out under load ~50, Render vs RenderState cost equal on forms-20k).
 - **risks (L4)**: full (non-short) TestInvariant/TestRendererInvariant not run on dev box (run on M1). With a StateRenderer
   the Cache key holds the block offset: same source at another offset misses. A held table tail followed in the same block by a form (no blank line) shows no marks.

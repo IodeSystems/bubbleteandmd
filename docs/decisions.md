@@ -175,3 +175,28 @@
   by wrap width); a wide code tail goes through codestream with the
   DirectiveRenderer (each chunk decides wide alone; a cut line does not
   depend on the render width, so chunks agree, SGR-only rule as before).
+- 2026-11-11 (L5): `Doc` wraps a Stream (`NewDoc(r, key, cache)`, same
+  arguments as NewStream) and owns its State; it is not a tea.Model (Carl).
+  Why a wrapper, not a Doc that takes Marks: one object per reply, as
+  dun keeps one Stream per reply today; the host cannot render without
+  updating the stops or forget SetState; Stream stays usable alone.
+  `Do(Action) bool` / `HandleKey(tea.KeyPressMsg, KeyMap) bool` return
+  "consumed". With no focus nothing is consumed: the host calls `Focus`
+  (or `FocusLast`) to give the Doc the keys, so a host that offers every
+  key to the Doc first still cycles its own zones. Leaving the Doc
+  (ActionNext past the last stop, ActionPrev before the first,
+  ActionLeave/esc) blurs it and returns false (dun's insideWideKeys rule).
+  Stops: one per drawn interactive form, from the marks of the last output
+  (Mark gained Panels and Folder for this), in line order; focus is by
+  form key, so a stop keeps focus as the reply grows; forms hidden in a
+  folded details or another tab are not stops. Keys (DefaultKeyMap): tab /
+  shift+tab, enter and space toggle, ←/→, esc; ↑/↓ unbound (host scroll).
+  Tabs: toggle switches stacked ↔ one-tab; ←/→ from stacked switch to
+  one-tab at the selected panel (first press does not move), then step,
+  wrapping. Tree (one stop): ←/→ move the cursor over the drawn folder
+  rows, wrapping; toggle opens/closes the folder at the cursor, not
+  consumed on a file row. A tree gets its State entry (fold marks, which
+  shift folder names 2 cells) on its first ←/→/toggle, not on focus. No
+  NormalizeKey: dun's folds shift+enter / SS3 M into ctrl+j (composer
+  newline), which means nothing to a Doc, and a real keypad enter arrives
+  as enter.

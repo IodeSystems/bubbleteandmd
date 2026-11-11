@@ -56,6 +56,12 @@ out, err = s.Final(reply)  // once, when the reply ends
   or table wider than `width` is not wrapped; it renders at its own width
   and each line is cut at `pane` with `… +N cols →`. Prose still wraps at
   `width`. Put `pane` in the Stream key.
+- Interactive forms: `d := bubbleteandmd.NewDoc(r, key, cache)` in place
+  of NewStream; `d.Frame`/`d.Final` as above. The layout stays as streamed
+  until the user acts. `d.Focus()` gives the Doc the keys;
+  `d.HandleKey(msg, bubbleteandmd.DefaultKeyMap())` returns false for a key
+  the host handles (↑/↓, tab past the last form, esc). Render again after a
+  true; `d.Stops()` and `d.Focused()` give the lines to scroll to.
 - On an error, show the raw text (after `Sanitize`).
 - Call `Sanitize` on model text you render outside Stream.
 
