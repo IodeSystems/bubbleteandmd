@@ -36,6 +36,8 @@ Plus a short format prompt that teaches a model the directive forms
 
 ## Rules
 
+- Terminal controls in the source never reach the terminal: Stream calls
+  `Sanitize` first; call it yourself for text you render outside Stream.
 - Healed text never reaches the stored source.
 - Joined blocks must equal glamour's whole-document spacing: the final frame
   must not move when the stream ends (checked by a test that compares
