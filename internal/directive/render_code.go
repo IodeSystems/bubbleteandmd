@@ -90,6 +90,11 @@ func renderCodeTitle(d Directive, c Ctx) ([]string, error) {
 	for len(lines) > 0 && strings.TrimSpace(xansi.Strip(lines[len(lines)-1])) == "" {
 		lines = lines[:len(lines)-1]
 	}
+	for i, l := range lines {
+		if xansi.StringWidth(l) > c.Width {
+			lines[i] = xansi.Truncate(l, c.Width, "…")
+		}
+	}
 	return append([]string{title}, lines...), nil
 }
 

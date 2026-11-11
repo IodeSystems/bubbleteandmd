@@ -110,3 +110,18 @@ func TestTreePlainRowAndFence(t *testing.T) {
 		t.Errorf("fence %q", f)
 	}
 }
+
+// TestCodeTitleCutsWidth: a code line glamour does not wrap (one long token
+// at a narrow width) is cut to the width, as the other forms' lines are.
+func TestCodeTitleCutsWidth(t *testing.T) {
+	src := "```go title=\"a.go\"\nx := \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n```\n"
+	for _, name := range []string{"dark", "notty"} {
+		for w := 1; w <= 8; w++ {
+			lines, err := renderCodeTitle(firstDirective(t, src), codeCtx(t, name, w))
+			if err != nil {
+				t.Fatal(err)
+			}
+			checkWidth(t, lines, w)
+		}
+	}
+}
