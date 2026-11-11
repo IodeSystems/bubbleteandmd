@@ -99,12 +99,13 @@ func (r *DirectiveRenderer) Render(md string) (string, error) {
 	return out, err
 }
 
-// renderState renders md as Render does, with each form drawn in its state
+// RenderState renders md as Render does, with each form drawn in its state
 // in st (nil: as streamed), and returns the marks of the interactive parts,
-// lines counted in out. offset is the document offset of md's text after
-// the sentinel: form keys are directive.IDs keys of the document. md should
+// lines counted in out (StateRenderer). offset is the document offset of
+// md's text after the sentinel: form keys are document keys (form offsets
+// in the source as written, before `$$` formulas are rewritten). md should
 // be sanitized already, else offsets move.
-func (r *DirectiveRenderer) renderState(md string, offset int, st *directive.State) (string, []directive.Mark, error) {
+func (r *DirectiveRenderer) RenderState(md string, offset int, st *State) (string, []Mark, error) {
 	return r.render(&r.outer, Sanitize(md), scope{on: true, base: offset, st: st})
 }
 
@@ -130,12 +131,14 @@ func (sc scope) key(rel int) string {
 
 // parsed is one top-level block: its source with `$$` formulas made math
 // fences, and the first form in it. wide: the wrap width of a wide block
-// (wide.go), else 0.
+// (wide.go), else 0. shifts: where the rewrite moved the text after a
+// formula.
 type parsed struct {
-	src  string
-	d    directive.Directive
-	form bool
-	wide int
+	src    string
+	d      directive.Directive
+	form   bool
+	wide   int
+	shifts []directive.MathShift
 }
 
 // piece is a rendered piece and the marks in it, lines counted from its
@@ -154,9 +157,9 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 	ps := make([]parsed, len(bs))
 	plain := true
 	for i, b := range bs {
-		src, math := mathFences(b.Source)
+		src, math, shifts := directive.MathFences(b.Source)
 		d, ok := directive.Parse(src)
-		ps[i] = parsed{src: src, d: d, form: ok}
+		ps[i] = parsed{src: src, d: d, form: ok, shifts: shifts}
 		if !ok && !math && t == &r.outer {
 			ps[i].wide = r.wideWidth(src)
 		}
@@ -219,7 +222,8 @@ func (r *DirectiveRenderer) block(t *target, pieces []piece, p parsed, at int, f
 		if len(pieces) > 0 {
 			first = false
 		}
-		lines, marks, err := r.form(d, t.width, sc, at+pos+d.Start)
+		// Keys are offsets in the source as written (directive.IDs).
+		lines, marks, err := r.form(d, t.width, sc, at+directive.RawOffset(p.shifts, pos+d.Start))
 		if err != nil {
 			return nil, err
 		}
@@ -310,111 +314,11 @@ func (r *DirectiveRenderer) inner(md string, w int, sc scope) (string, []directi
 // padRe is a line's trailing pad cells: plain or styled spaces.
 var padRe = regexp.MustCompile(`(?: |\x1b\[[0-9;]*m +\x1b\[m)+$`)
 
-// mathFenceOpen is a `$$` formula's first line (remark-math: up to three
-// spaces of indent).
-var (
-	mathFenceOpen = regexp.MustCompile(`^ {0,3}\$\$`)
-	codeFenceRe   = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})")
-)
+// codeFenceRe is a code fence line: up to three spaces, the fence run.
+var codeFenceRe = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})")
 
-// mathFences rewrites each top-level `$$ … $$` formula in src as a ```math
-// fence (Carl B7: a formula shows as its TeX source, as code). Lines inside a
-// code fence are left alone. A formula not closed runs to the end of src.
-// ok reports whether src held a formula.
+// mathFences is directive.MathFences without the shifts.
 func mathFences(src string) (string, bool) {
-	if !strings.Contains(src, "$$") {
-		return src, false
-	}
-	lines := strings.SplitAfter(src, "\n")
-	var b strings.Builder
-	found := false
-	fence := ""
-	for i := 0; i < len(lines); i++ {
-		line := lines[i]
-		text := strings.TrimRight(line, "\r\n")
-		if fence != "" {
-			if m := codeFenceRe.FindStringSubmatch(text); m != nil && strings.HasPrefix(m[1], fence) && strings.TrimSpace(text[len(m[0]):]) == "" {
-				fence = ""
-			}
-			b.WriteString(line)
-			continue
-		}
-		if m := codeFenceRe.FindStringSubmatch(text); m != nil && !(m[1][0] == '`' && strings.Contains(text[len(m[0]):], "`")) {
-			fence = m[1]
-			b.WriteString(line)
-			continue
-		}
-		loc := mathFenceOpen.FindStringIndex(text)
-		if loc == nil {
-			b.WriteString(line)
-			continue
-		}
-		found = true
-		eol := line[len(text):]
-		var body []string
-		rest := text[loc[1]:]
-		closed := false
-		if j := closeDollars(rest); j >= 0 {
-			// one line: $$ x $$
-			body = append(body, strings.TrimSpace(rest[:j]))
-			closed = true
-		} else if strings.TrimSpace(rest) != "" {
-			body = append(body, strings.TrimSpace(rest))
-		}
-		for !closed && i+1 < len(lines) {
-			i++
-			l := strings.TrimRight(lines[i], "\r\n")
-			eol = lines[i][len(l):]
-			if j := closeDollars(l); j >= 0 {
-				if strings.TrimSpace(l[:j]) != "" {
-					body = append(body, l[:j])
-				}
-				closed = true
-				break
-			}
-			body = append(body, l)
-		}
-		code := strings.Join(body, "\n")
-		f := longFence(code)
-		b.WriteString(f + "math\n")
-		if code != "" {
-			b.WriteString(code + "\n")
-		}
-		b.WriteString(f)
-		if eol == "" {
-			eol = "\n"
-		}
-		b.WriteString(eol)
-	}
-	return b.String(), found
-}
-
-// closeDollars returns where the first unescaped `$$` in s starts, or -1.
-func closeDollars(s string) int {
-	for i := 0; i+1 < len(s); i++ {
-		if s[i] == '\\' {
-			i++
-			continue
-		}
-		if s[i] == '$' && s[i+1] == '$' {
-			return i
-		}
-	}
-	return -1
-}
-
-// longFence is a backtick fence longer than any backtick run at a line start of code.
-func longFence(code string) string {
-	n := 3
-	for _, l := range strings.Split(code, "\n") {
-		t := strings.TrimLeft(l, " ")
-		k := 0
-		for k < len(t) && t[k] == '`' {
-			k++
-		}
-		if k >= n {
-			n = k + 1
-		}
-	}
-	return strings.Repeat("`", n)
+	out, ok, _ := directive.MathFences(src)
+	return out, ok
 }

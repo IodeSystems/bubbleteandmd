@@ -45,34 +45,37 @@ type GlamourOptions interface {
 var ErrTrimmed = errors.New("bubbleteandmd: Renderer output ends a paragraph without a newline; pass a raw *glamour.TermRenderer")
 
 // cacheKey: a block renders differently when it is first in the document
-// (no Sentinel before it).
+// (no Sentinel before it). With a StateRenderer, at (the block's offset:
+// mark keys hold it) and state (stateKey of the block) are in the key too.
 type cacheKey struct {
 	key    string
 	source string
 	first  bool
+	at     int
+	state  string
 }
 
 // Cache holds rendered stable blocks, keyed by (Stream key, block source).
 // One Cache can serve many Streams; it is safe for concurrent use.
 type Cache struct {
 	mu  sync.Mutex
-	lru *lru.Cache[cacheKey, string]
+	lru *lru.Cache[cacheKey, rendered]
 	// put, when set (tests), sees every source stored.
 	put func(source string)
 }
 
 // NewCache returns a cache of at most max rendered blocks.
 func NewCache(max int) *Cache {
-	return &Cache{lru: lru.New[cacheKey, string](max)}
+	return &Cache{lru: lru.New[cacheKey, rendered](max)}
 }
 
-func (c *Cache) get(k cacheKey) (string, bool) {
+func (c *Cache) get(k cacheKey) (rendered, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.lru.Get(k)
 }
 
-func (c *Cache) store(k cacheKey, v string) {
+func (c *Cache) store(k cacheKey, v rendered) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.put != nil {
@@ -93,10 +96,20 @@ func (c *Cache) store(k cacheKey, v string) {
 // do not. Final is exact. A growing table tail renders from cached rows,
 // exact, when the Renderer tells its options (GlamourOptions).
 //
+// With a StateRenderer, every block renders in the State given to SetState
+// (Final equals RenderState of the whole sanitized text), and Marks returns
+// where the interactive parts of the last output are.
+//
 // A Stream is not safe for concurrent use.
 type Stream struct {
-	r     Renderer
-	key   string
+	r   Renderer
+	key string
+	// sr is r when it is a StateRenderer; st is the State it draws with;
+	// marks: the marks of the last output; pl: the "\n" count of p.
+	sr    StateRenderer
+	st    *State
+	marks []Mark
+	pl    int
 	cache *Cache
 	split blocks.Splitter
 	// p, s: document prefix and suffix, from the render of "".
@@ -146,10 +159,24 @@ type streamStats struct {
 	lastFence    bool
 }
 
-// memo is one rendered block, keyed by its source and whether it is first.
+// memo is one rendered block, keyed by its source, whether it is first,
+// its offset and its stateKey (the last two with a StateRenderer only).
 type memo struct {
-	source, piece string
+	source, state string
+	piece         rendered
+	at            int
 	first, ok     bool
+}
+
+func (m *memo) hit(source, state string, at int, first bool) bool {
+	return m.ok && m.first == first && m.at == at && m.state == state && m.source == source
+}
+
+// rendered is one block's piece and the marks in it, lines counted from
+// the piece's first line.
+type rendered struct {
+	text  string
+	marks []Mark
 }
 
 // NewStream returns a Stream that renders with r and caches stable blocks
@@ -157,6 +184,7 @@ type memo struct {
 // width and style). c may be shared by Streams; nil means no cache.
 func NewStream(r Renderer, key string, c *Cache) *Stream {
 	s := &Stream{r: r, key: key, cache: c}
+	s.sr, _ = r.(StateRenderer)
 	if g, ok := r.(GlamourOptions); ok {
 		s.gopts, s.tables = g.GlamourOptions()
 	}
@@ -170,6 +198,17 @@ func (s *Stream) Frame(src string) (string, error) { return s.render(src, true) 
 // Final renders src as written, with no healing; only Sanitize applies.
 func (s *Stream) Final(src string) (string, error) { return s.render(src, false) }
 
+// SetState sets the State the next Frame and Final draw forms in (nil: as
+// streamed). It is read on every call, so a change to *st shows on the
+// next call; blocks whose part of the State did not change still come from
+// the cache. It has an effect only when the Renderer is a StateRenderer.
+func (s *Stream) SetState(st *State) { s.st = st }
+
+// Marks returns the marks of the last Frame or Final: where each
+// interactive part is drawn, lines counted in that output. nil when the
+// Renderer is not a StateRenderer, or the last call failed.
+func (s *Stream) Marks() []Mark { return s.marks }
+
 func (s *Stream) render(src string, healed bool) (string, error) {
 	if !s.ready {
 		if err := s.setup(); err != nil {
@@ -178,6 +217,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		s.ready = true
 	}
 	s.stats.lastFence, s.stats.lastHeld = false, false
+	s.marks = nil
 	// Before split, heal and cache, so all three see clean text.
 	src = s.sanitize(src)
 	if s.seen != nil {
@@ -185,9 +225,9 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 	}
 	bs := s.split.Split(src)
 	stable := max(0, len(bs)-2)
-	pieces := make([]string, 0, len(bs))
+	pieces := make([]rendered, 0, len(bs))
 	for _, b := range bs[:stable] {
-		piece, err := s.block(b.Source, b.Offset == 0)
+		piece, err := s.block(b.Source, b.Offset, b.Offset == 0)
 		if err != nil {
 			return "", err
 		}
@@ -214,7 +254,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 				}
 			}
 			if tailAt != near.Offset {
-				piece, err := s.nearBlock(near.Source, near.Offset == 0)
+				piece, err := s.nearBlock(near.Source, near.Offset, near.Offset == 0)
 				if err != nil {
 					return "", err
 				}
@@ -229,7 +269,20 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		}
 		pieces = append(pieces, piece)
 	}
-	return join.Join(s.p, s.s, pieces), nil
+	texts := make([]string, len(pieces))
+	var marks []Mark
+	line := s.pl
+	for i, x := range pieces {
+		texts[i] = x.text
+		// join drops cells on a shared line, never a "\n".
+		for _, m := range x.marks {
+			m.Line += line
+			marks = append(marks, m)
+		}
+		line += strings.Count(x.text, "\n")
+	}
+	s.marks = marks
+	return join.Join(s.p, s.s, texts), nil
 }
 
 // setup reads the document prefix and suffix and checks that a paragraph
@@ -247,14 +300,15 @@ func (s *Stream) setup() error {
 		s.err = err
 		return err
 	}
+	s.pl = strings.Count(s.p, "\n")
 	// glamour ends every paragraph line with "\n"; with no "\n" each piece
 	// would join as an open line (join.Join drops cells), and the output
 	// would be wrong with no error.
-	probe, err := s.piece("x\n", false)
+	probe, err := s.piece("x\n", 0, false)
 	if err != nil {
 		return err
 	}
-	if !strings.HasSuffix(probe, "\n") {
+	if !strings.HasSuffix(probe.text, "\n") {
 		s.err = ErrTrimmed
 		return s.err
 	}
@@ -287,35 +341,49 @@ func (s *Stream) sanitize(src string) string {
 }
 
 // nearBlock renders the block before the last. It is not cached: appended
-// text can still change it, so it is memoized by its source alone.
-func (s *Stream) nearBlock(source string, first bool) (string, error) {
-	if s.near.ok && s.near.first == first && s.near.source == source {
+// text can still change it, so it is memoized by its source (and, with a
+// StateRenderer, its offset and state) alone.
+func (s *Stream) nearBlock(source string, at int, first bool) (rendered, error) {
+	kat, state := s.stateOf(source, at)
+	if s.near.hit(source, state, kat, first) {
 		return s.near.piece, nil
 	}
-	v, err := s.piece(source, first)
+	v, err := s.piece(source, at, first)
 	if err != nil {
-		return "", err
+		return rendered{}, err
 	}
-	s.near = memo{source: source, piece: v, first: first, ok: true}
+	s.near = memo{source: source, state: state, piece: v, at: kat, first: first, ok: true}
 	return v, nil
 }
 
-// block renders a stable block, from the cache when it is there.
-func (s *Stream) block(source string, first bool) (string, error) {
-	if s.cache == nil {
-		return s.piece(source, first)
+// stateOf returns the offset and stateKey a block of source at offset at
+// is keyed by: 0 and "" when the Renderer is not a StateRenderer (its
+// output does not depend on them).
+func (s *Stream) stateOf(source string, at int) (int, string) {
+	if s.sr == nil {
+		return 0, ""
 	}
-	k := cacheKey{s.key, source, first}
+	return at, stateKey(s.st, at, at+len(source))
+}
+
+// block renders a stable block at offset at, from the cache when it is
+// there.
+func (s *Stream) block(source string, at int, first bool) (rendered, error) {
+	if s.cache == nil {
+		return s.piece(source, at, first)
+	}
+	k := cacheKey{key: s.key, source: source, first: first}
+	k.at, k.state = s.stateOf(source, at)
 	if v, ok := s.cache.get(k); ok {
 		return v, nil
 	}
-	var v string
-	if s.near.ok && s.near.first == first && s.near.source == source {
+	var v rendered
+	if s.near.hit(source, k.state, k.at, first) {
 		v = s.near.piece // rendered while it was the block before the last
 	} else {
 		var err error
-		if v, err = s.piece(source, first); err != nil {
-			return "", err
+		if v, err = s.piece(source, at, first); err != nil {
+			return rendered{}, err
 		}
 	}
 	// source is a substring of src: a copy, so the key does not keep the
@@ -331,38 +399,58 @@ func (s *Stream) block(source string, first bool) (string, error) {
 // fence renders in chunks (codestream: may differ in SGR bytes only, Carl
 // B1). In Frame, a table with fewer than holdRows body rows is held: one
 // placeholder line (tablehold.go). Any other tail renders whole.
-func (s *Stream) tailPiece(tail string, at int, last, healed bool) (string, error) {
+//
+// With a StateRenderer, a fast path renders through a tailRenderer: when it
+// falls back to the whole render, that render is in the State, with marks.
+// A held table, a chunked fence and spliced table rows have no forms.
+func (s *Stream) tailPiece(tail string, at int, last, healed bool) (rendered, error) {
 	first := at == 0
 	if last && healed && heldTable(tail) {
 		s.stats.held++
 		s.stats.lastHeld = true
-		return s.holdPiece(first)
+		text, err := s.holdPiece(first)
+		return rendered{text: text}, err
 	}
-	if last && healed && s.plainFence(tail) {
+	fast := last && healed && s.plainFence(tail)
+	table := !fast && s.tables && last && strings.HasPrefix(tail, "|")
+	if !fast && !table {
+		return s.piece(tail, at, first)
+	}
+	in := join.Input(tail, first)
+	var r Renderer = s.r
+	var tr *tailRenderer
+	if s.sr != nil {
+		tr = &tailRenderer{s: s, at: at, whole: in}
+		r = tr
+	}
+	marks := func() []Mark {
+		if tr == nil {
+			return nil
+		}
+		return s.pieceMarks(tr.marks)
+	}
+	if fast {
 		if s.fence == nil {
 			s.fence = codestream.New()
 		}
-		out, err := s.fence.Frame(join.Input(tail, first), s.r)
+		text, err := s.strip(s.fence.Frame(in, r))
 		if err != nil {
-			return "", err
+			return rendered{}, err
 		}
 		if s.fence.Spliced() {
 			s.stats.fenceSpliced++
 			s.stats.lastFence = true
 		}
-		return join.Strip(out, s.p, s.s)
-	}
-	if !s.tables || !last || !strings.HasPrefix(tail, "|") {
-		return s.piece(tail, first)
+		return rendered{text, marks()}, nil
 	}
 	// A wide table (DirectiveRenderer.WideBlocks) grows through the wide
-	// renderer at its own width; its lines are cut as Render cuts them.
-	var r Renderer = s.r
+	// renderer at its own width; its lines are cut as Render cuts them. It
+	// has no forms (wideTable).
 	opts, wide, cut := s.gopts, 0, func(p string) string { return p }
 	if dr, ok := s.r.(*DirectiveRenderer); ok {
 		t, o, ok, err := dr.wideTable(tail)
 		if err != nil {
-			return "", err
+			return rendered{}, err
 		}
 		if ok {
 			r, opts, wide, cut = t.g, o, o.WordWrap, dr.cutLines
@@ -372,13 +460,12 @@ func (s *Stream) tailPiece(tail string, at int, last, healed bool) (string, erro
 		s.table, s.tableAt, s.tableW = tablestream.New(opts), at, wide
 	}
 	before := s.table.Stats.Spliced
-	out, err := s.table.Render(join.Input(tail, first), r)
+	text, err := s.strip(s.table.Render(in, r))
 	if err != nil {
-		return "", err
+		return rendered{}, err
 	}
 	s.stats.tableSpliced += s.table.Stats.Spliced - before
-	piece, err := join.Strip(out, s.p, s.s)
-	return cut(piece), err
+	return rendered{cut(text), marks()}, nil
 }
 
 // fenceOpenRe: a fenced code block's opening line (CommonMark: up to three
@@ -409,10 +496,53 @@ func (s *Stream) plainFence(tail string) bool {
 	return s.plain
 }
 
-func (s *Stream) piece(source string, first bool) (string, error) {
-	out, err := s.r.Render(join.Input(source, first))
+// piece renders the block source at offset at, alone: with a StateRenderer
+// in the Stream's State, with its marks.
+func (s *Stream) piece(source string, at int, first bool) (rendered, error) {
+	if s.sr == nil {
+		text, err := s.strip(s.r.Render(join.Input(source, first)))
+		return rendered{text: text}, err
+	}
+	out, marks, err := s.sr.RenderState(join.Input(source, first), at, s.st)
+	text, err := s.strip(out, err)
+	if err != nil {
+		return rendered{}, err
+	}
+	return rendered{text, s.pieceMarks(marks)}, nil
+}
+
+func (s *Stream) strip(out string, err error) (string, error) {
 	if err != nil {
 		return "", err
 	}
 	return join.Strip(out, s.p, s.s)
+}
+
+// pieceMarks moves marks counted in a render to count in its piece (P
+// stripped).
+func (s *Stream) pieceMarks(marks []Mark) []Mark {
+	for i := range marks {
+		marks[i].Line -= s.pl
+	}
+	return marks
+}
+
+// tailRenderer is the Renderer a fast path renders the tail through, with
+// a StateRenderer: every render is RenderState at the tail's offset in the
+// Stream's State, and the marks of a render of the whole tail (a fast path
+// falls back to it) are kept. Its other renders are parts of a code fence
+// or a table: no forms, no marks.
+type tailRenderer struct {
+	s     *Stream
+	at    int
+	whole string
+	marks []Mark
+}
+
+func (t *tailRenderer) Render(md string) (string, error) {
+	out, marks, err := t.s.sr.RenderState(md, t.at, t.s.st)
+	if md == t.whole {
+		t.marks = marks
+	}
+	return out, err
 }

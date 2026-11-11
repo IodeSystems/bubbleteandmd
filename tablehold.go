@@ -53,5 +53,6 @@ func (s *Stream) holdPiece(first bool) (string, error) {
 	if p, ok := s.r.(placeheld); ok {
 		return p.placeholder(holdText, first), nil
 	}
-	return s.piece(holdText+"\n", first)
+	p, err := s.piece(holdText+"\n", 0, first)
+	return p.text, err
 }

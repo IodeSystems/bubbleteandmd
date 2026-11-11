@@ -35,23 +35,26 @@ func (f FormID) Interactive() bool {
 
 // IDs returns the forms of one top-level block, the block starting at byte
 // offset in the document, in document order, each form before the forms in
-// its bodies. Forms are found as the renderer finds them: Parse, then Parse
+// its bodies. Forms are found as the renderer finds them: MathFences, Parse, then Parse
 // again after the form's End. Bodies of callouts, folded sections, tabs,
 // steps and pros and cons are read the same way, after blocks.Split.
 func IDs(block string, offset int) []FormID {
 	return idsIn(block, offset, "", 0)
 }
 
-// idsIn reads src, which starts at byte at of its body. parent is the Key of
+// idsIn reads block, which starts at byte at of its body. parent is the Key of
 // the form the body belongs to; base is that form's Offset.
-func idsIn(src string, at int, parent string, base int) []FormID {
+// Forms are read in MathFences(block), as the renderer reads them; offsets
+// are in block as written (RawOffset).
+func idsIn(block string, at int, parent string, base int) []FormID {
+	src, _, shifts := MathFences(block)
 	var out []FormID
 	for pos := 0; ; {
 		d, ok := Parse(src[pos:])
 		if !ok {
 			return out
 		}
-		rel := at + pos + d.Start
+		rel := at + RawOffset(shifts, pos+d.Start)
 		id := FormID{Key: strconv.Itoa(rel), Offset: base + rel, Kind: d.Kind, Parent: parent}
 		if parent != "" {
 			id.Key = parent + "@" + id.Key

@@ -84,7 +84,7 @@ func stateDocs(t *testing.T) []invCase {
 	return cs
 }
 
-// TestZeroStateGolden: renderState with a nil or empty State draws the
+// TestZeroStateGolden: RenderState with a nil or empty State draws the
 // goldens Render drew before state existed, whole and block by block.
 func TestZeroStateGolden(t *testing.T) {
 	for _, style := range []string{"dark", "light", "notty"} {
@@ -93,7 +93,7 @@ func TestZeroStateGolden(t *testing.T) {
 			for _, d := range directiveDocs(t) {
 				name := fmt.Sprintf("docs/%s_%s_%d", strings.TrimPrefix(d.name, "dir-"), style, w)
 				for _, st := range []*directive.State{nil, {}} {
-					out, _, err := r.renderState(d.text, 0, st)
+					out, _, err := r.RenderState(d.text, 0, st)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -106,7 +106,7 @@ func TestZeroStateGolden(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					s, _, err := r.renderState(in, b.Offset, &directive.State{})
+					s, _, err := r.RenderState(in, b.Offset, &directive.State{})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -121,13 +121,14 @@ func TestZeroStateGolden(t *testing.T) {
 }
 
 // formsIn walks src as directive.IDs does and returns each form by key.
-func formsIn(src string, at int, parent string, out map[string]directive.Directive) {
+func formsIn(block string, at int, parent string, out map[string]directive.Directive) {
+	src, _, shifts := directive.MathFences(block)
 	for pos := 0; ; {
 		d, ok := directive.Parse(src[pos:])
 		if !ok {
 			return
 		}
-		key := strconv.Itoa(at + pos + d.Start)
+		key := strconv.Itoa(at + directive.RawOffset(shifts, pos+d.Start))
 		if parent != "" {
 			key = parent + "@" + key
 		}
@@ -204,7 +205,7 @@ func TestStateKeysMatchIDs(t *testing.T) {
 	for _, d := range docs {
 		text := Sanitize(d.text)
 		_, ids := docForms(t, text)
-		_, marks, err := r.renderState(text, 0, nil)
+		_, marks, err := r.RenderState(text, 0, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -366,7 +367,7 @@ func TestStateLineMap(t *testing.T) {
 						units = append(units, unit{join.Input(b.Source, b.Offset == 0), b.Offset})
 					}
 					for _, u := range units {
-						out, ms, err := r.renderState(u.in, u.off, st)
+						out, ms, err := r.RenderState(u.in, u.off, st)
 						if err != nil {
 							t.Fatal(err)
 						}
