@@ -2,10 +2,7 @@
 
 package heal
 
-import (
-	"strings"
-	"unicode/utf8"
-)
+import "strings"
 
 // jsSpaceClass is the set JavaScript's \s and String.prototype.trim use. Go's \s is ASCII only.
 const jsSpaceClass = `\t\n\v\f\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}`
@@ -22,25 +19,6 @@ func isJSSpace(r rune) bool {
 
 func trimJS(s string) string      { return strings.TrimFunc(s, isJSSpace) }
 func trimRightJS(s string) string { return strings.TrimRightFunc(s, isJSSpace) }
-
-// leadingSpace skips up to max JS-space characters (the \s{0,max} of the source) and returns the
-// rest. ok is false when more than max follow: the next character is then a space, which none of
-// the callers' patterns accept.
-func leadingSpace(line string, max int) (rest string, ok bool) {
-	n := 0
-	for n < len(line) {
-		r, w := utf8.DecodeRuneInString(line[n:])
-		if !isJSSpace(r) {
-			break
-		}
-		line = line[w:]
-		max--
-		if max < 0 {
-			return "", false
-		}
-	}
-	return line, true
-}
 
 // blank is a run of spaces as long as span in bytes: positions in the masked string stay valid
 // indexes into the original.

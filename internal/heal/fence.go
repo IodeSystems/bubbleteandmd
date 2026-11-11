@@ -10,11 +10,13 @@ type fence struct {
 	bodyStart int
 }
 
-// parseFenceLine matches /^\s{0,3}(`{3,}|~{3,})(.*)$/. JS's `.` stops at \r, U+2028 and U+2029,
-// so a line ending in \r is not a fence line, as in the source.
+// parseFenceLine matches /^ {0,3}(`{3,}|~{3,})(.*)$/. JS's `.` stops at \r, U+2028 and U+2029,
+// so a line ending in \r is not a fence line, as in the source. The TS has \s{0,3}; here the
+// indent is spaces only, as CommonMark and blocks.Split read it: a tab is four columns, so
+// "\t```" starts indented code, and closing it would add a fence the final text lacks.
 func parseFenceLine(line string) (run, rest string, ok bool) {
-	body, ok := leadingSpace(line, 3)
-	if !ok || body == "" || (body[0] != '`' && body[0] != '~') {
+	body := strings.TrimLeft(line, " ")
+	if len(line)-len(body) > 3 || body == "" || (body[0] != '`' && body[0] != '~') {
 		return "", "", false
 	}
 	n := 0

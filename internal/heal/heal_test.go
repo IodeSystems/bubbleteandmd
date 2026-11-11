@@ -301,3 +301,20 @@ func firstDiff(a, b string) string {
 	}
 	return "length differs"
 }
+
+// TestTabBeforeFence: CommonMark (and blocks.Split) take a fence's indent
+// as up to three spaces. A tab is four columns, so "\t```" starts indented
+// code: closing it would add a fence the final text does not have. Not in
+// the TS: its \s{0,3} takes the tab as one space.
+func TestTabBeforeFence(t *testing.T) {
+	for _, s := range []string{"para\n\n\t```\ncode", "\t~~~\ncode", " \t```\ncode", " ```\ncode", "    ```\ncode"} {
+		if _, ok := OpenFenceBody(s); ok {
+			t.Errorf("OpenFenceBody(%q) is a fence", s)
+		}
+		if got := Close(s); strings.HasSuffix(got, "\n```") || strings.HasSuffix(got, "\n~~~") {
+			t.Errorf("Close(%q) = %q closes a fence", s, got)
+		}
+	}
+	run(t, "up to three spaces before ``` is a fence",
+		pair{"   ```\ncode", "   ```\ncode\n```"})
+}

@@ -256,3 +256,16 @@ func TestTrimmedRenderer(t *testing.T) {
 		}
 	}
 }
+
+// TestTabFenceFrame: "\t```" is indented code (CommonMark, blocks.Split).
+// heal.Close does not close it as a fence (internal/heal TestTabBeforeFence);
+// the invariant holds at every token prefix of a reply that has one.
+func TestTabFenceFrame(t *testing.T) {
+	r, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := "para\n\n\t```\n\tcode\n\nafter **bold** text\n\n- item\n\n\t```\n\tin item\n\nend\n"
+	var run, passed atomic.Int64
+	checkStream(t, r, text, corpus.TokenPrefixes(text), &run, &passed)
+}
