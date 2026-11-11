@@ -7,6 +7,7 @@ import (
 
 	"charm.land/glamour/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/iodesystems/bubbleteandmd/internal/join"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -151,30 +152,6 @@ func cut(src []byte) ([]string, string) {
 	return out, refs.String()
 }
 
-// dropCells removes the first n visible cells and any escape sequences
-// that sit between them; escapes after the nth cell are kept.
-func dropCells(s string, n int) string {
-	i := 0
-	for n > 0 && i < len(s) {
-		switch {
-		case s[i] == 0x1b && i+1 < len(s) && s[i+1] == '[':
-			j := i + 2
-			for j < len(s) && s[j] != 'm' {
-				j++
-			}
-			i = j + 1
-		default:
-			i++
-			n--
-			// a styled cell is ESC[..m <c> ESC[m ; the closing reset belongs to it
-			if strings.HasPrefix(s[i:], "\x1b[m") {
-				i += 3
-			}
-		}
-	}
-	return s[i:]
-}
-
 func firstDiff(a, b string) string {
 	i := 0
 	for i < len(a) && i < len(b) && a[i] == b[i] {
@@ -252,7 +229,7 @@ func TestSpikeJoin(t *testing.T) {
 						if m.fix && i > 0 && piece != "" && !strings.HasSuffix(prev, "\n") {
 							lastLine := prev[strings.LastIndex(prev, "\n")+1:]
 							if nl := strings.Index(piece, "\n"); nl >= 0 {
-								piece = dropCells(piece[:nl], ansi.StringWidth(lastLine)) + piece[nl:]
+								piece = join.DropCells(piece[:nl], ansi.StringWidth(lastLine)) + piece[nl:]
 							}
 						}
 						if piece == "" { // e.g. comment-only segment emits nothing

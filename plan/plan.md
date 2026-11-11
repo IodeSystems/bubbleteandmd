@@ -31,7 +31,8 @@ DAG:
 - ✅ N5 internal/lru: count bound only (no weight).
 - ◻ N6 stream.Stream (N1,N3,N4,N5) · N7 invariant test every chunk boundary (N2,N6) · N8 splitter vs goldmark differential (N2,N3).
 - ◻ N9 bench Stream vs whole · N10 docs.
-- **next**: N3 result → N6 Stream + N7 invariant, N8 differential.
+- ✅ N3 internal/blocks · ✅ N8 goldmark differential (no mismatches).
+- **next**: N6+N7 result → ship layer 1 (Carl 2026-11-10: ship layer 1 first, then layer 2). Before tag/push: confirm version + push with Carl; then message dun-bf version + API.
 - **risks**: SGR pen carry across blocks (margin.go:159-201); sentinel may emit bytes; scanner written for remark, parser here is goldmark; dun's renderAnswer/splitWide is not one whole-doc render, so the invariant does not cover dun's wide path; token-prefix invariant is O(n²).
 - **blocking decisions**: D4 splitWide ownership (dun-bf, open). D6 default: token-prefix run skipped under `-short` (assumption).
 - **optional extensions**: holdHeight-style no-shrink; splitWide port.
