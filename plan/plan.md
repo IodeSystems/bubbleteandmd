@@ -58,6 +58,13 @@ forms-20k bench used plain glamour, not DirectiveRenderer.
 - ◻ N9 docs (README: GlamourOptions; Frame SGR exception for growing fences)
 - Carl 2026-11-11: B1 code = approximate chunked Frame + exact Final (lines never move; seam colours may change at end) · B2 tables = T5 exact row splice, whole render on width change · B3 = draft upstream issue texts only, Carl files them.
 
+### ◐ Deps + local caches (Carl 2026-11-11)
+- Bump to latest tags: chroma 2.27, goldmark 1.8.x, lipgloss 2.1.0, x/ansi 0.11.9; glamour stays v2.0.1 (v2.0.2 tag request drafted for Carl).
+- ◐ 5 fence-language cache in DirectiveRenderer: unknown/empty lang → `text` (colours only change) — worktree agent.
+- ◻ 4 cached terminal256 formatter under a new chroma name via glamour.WithChromaFormatter (no shared value changed); prototype byte-equal, small blocks ~5× faster (scratchpad fmt4/).
+- Upstream: report only what reproduces on latest (memory rule); 6 drafts left in scratchpad upstream-issues.md for Carl.
+- **next**: merge 5 → bump + 4 → invariants + bench on M1 → ask Carl v0.3.0.
+
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
 - Assumption: benchmark code lives in the repo (`bench/` package, `_test.go`), committed as `test:`/`chore:`.
