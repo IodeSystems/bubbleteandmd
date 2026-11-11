@@ -1,0 +1,44 @@
+
+  # Nested forms                  
+                                  
+  PostgreSQL · SQLite             
+                                  
+  ▸ PostgreSQL ───────────────────
+  + Pros                          
+  • concurrent writes             
+                                  
+  − Cons                          
+  • needs a server                
+                                  
+  ▸ SQLite ───────────────────────
+  + Pros                          
+  • one file                      
+                                  
+  − Cons                          
+  • one writer                    
+                                  
+  --------                        
+                                  
+  ▾ Full log                      
+                                  
+    The long part, quoted.        
+                                  
+    | WARNING                     
+    |                             
+    | A warning inside the        
+    | details.                    
+                                  
+      line one                    
+      line two                    
+                                  
+  | NOTE                          
+  |                               
+  | A note holding a tree:        
+  |                               
+  | src/                          
+  | ├── main.go                   
+  | └── util.go                   
+                                  
+  1. a list                       
+  2. after                        
+

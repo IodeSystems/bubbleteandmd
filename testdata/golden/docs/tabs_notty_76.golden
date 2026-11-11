@@ -1,0 +1,32 @@
+
+  # Tabs and verdicts                                                     
+                                                                          
+  macOS · Linux · Windows                                                 
+                                                                          
+  ▸ macOS ────────────────────────────────────────────────────────────────
+    brew install thing                                                    
+                                                                          
+  ▸ Linux ────────────────────────────────────────────────────────────────
+  Use the package manager:                                                
+                                                                          
+    apt install thing                                                     
+                                                                          
+  ▸ Windows ──────────────────────────────────────────────────────────────
+  Download the installer.                                                 
+                                                                          
+  + Good                                − Bad                             
+  • typed APIs                          • a build step                    
+  • fast builds with a long line                                          
+    that has to wrap somewhere near                                       
+    the end                                                               
+                                                                          
+  Text between.                                                           
+                                                                          
+  − Cons                                + Pros                            
+  • cons first                          • pros second                     
+                                                                          
+  + Pros                                                                  
+  • pros alone                                                            
+                                                                          
+  ### A heading after                                                     
+

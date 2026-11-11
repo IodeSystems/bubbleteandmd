@@ -1,0 +1,37 @@
+
+  # Nested forms                                                          
+                                                                          
+  PostgreSQL · SQLite                                                     
+                                                                          
+  ▸ PostgreSQL ───────────────────────────────────────────────────────────
+  + Pros                                − Cons                            
+  • concurrent writes                   • needs a server                  
+                                                                          
+  ▸ SQLite ───────────────────────────────────────────────────────────────
+  + Pros                                − Cons                            
+  • one file                            • one writer                      
+                                                                          
+  --------                                                                
+                                                                          
+  ▾ Full log                                                              
+                                                                          
+    The long part, quoted.                                                
+                                                                          
+    | WARNING                                                             
+    |                                                                     
+    | A warning inside the details.                                       
+                                                                          
+      line one                                                            
+      line two                                                            
+                                                                          
+  | NOTE                                                                  
+  |                                                                       
+  | A note holding a tree:                                                
+  |                                                                       
+  | src/                                                                  
+  | ├── main.go                                                           
+  | └── util.go                                                           
+                                                                          
+  1. a list                                                               
+  2. after                                                                
+
