@@ -269,3 +269,24 @@ func TestTabFenceFrame(t *testing.T) {
 	var run, passed atomic.Int64
 	checkStream(t, r, text, corpus.TokenPrefixes(text), &run, &passed)
 }
+
+// TestCRLFFrame: Stream turns "\r\n" into "\n" before heal, so a CRLF reply
+// heals as the LF one does (heal itself, like the TS, rejects a fence line
+// that ends in "\r").
+func TestCRLFFrame(t *testing.T) {
+	r, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewStream(r, "k", nil)
+	for _, src := range []string{"```\r\na*b\r\n", "x*y\r\n\r\nfoo", "# T\r\n\r\n- a\r\n- **b\r\n"} {
+		crlf, err := s.Frame(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lf, _ := s.Frame(strings.ReplaceAll(src, "\r\n", "\n"))
+		if crlf != lf {
+			t.Errorf("%q: CRLF frame differs from LF: %s", src, firstDiff(lf, crlf))
+		}
+	}
+}
