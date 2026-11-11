@@ -88,7 +88,7 @@ func TestFrameStyledLinesKeepWidth(t *testing.T) {
 
 func TestRenderUnknownKind(t *testing.T) {
 	var _ ansi.StyleConfig
-	if _, err := Render(Directive{}, Ctx{Width: 40}); err == nil {
+	if _, _, err := Render(Directive{}, Ctx{Width: 40}); err == nil {
 		t.Fatal("want error")
 	}
 }

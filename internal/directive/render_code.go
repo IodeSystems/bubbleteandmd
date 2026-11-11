@@ -6,13 +6,17 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 )
 
-// renderTree draws a ```tree fence: all folders open, guides redrawn.
-func renderTree(d Directive, c Ctx) ([]string, error) {
+// renderTree draws a ```tree fence: guides redrawn, all folders open. A
+// tree with state (State.Trees) marks each folder "▾ " open or "▸ "
+// closed and hides the rows under a closed one. Focused, the cursor row's
+// name is drawn with Theme.Focus.
+func renderTree(d Directive, c Ctx) ([]string, []Mark, error) {
 	if d.Tree == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	rows := d.Tree.Rows
 	th := c.Theme
+	ts, folds := c.State.tree(c.Key)
 	last := make([]bool, len(rows))
 	for i, r := range rows {
 		last[i] = true
@@ -23,9 +27,34 @@ func renderTree(d Directive, c Ctx) ([]string, error) {
 			}
 		}
 	}
+	// shown[i]: no folder above row i is closed. Rows under a hidden row are
+	// hidden, so only the parent needs a look.
+	shown := make([]bool, len(rows))
+	for i, r := range rows {
+		p := r.Parent
+		shown[i] = p < 0 || (shown[p] && !ts.Closed[rows[p].Path])
+	}
+	cursor := -1
+	if c.State.focused(c.Key) && len(rows) > 0 {
+		cursor = 0
+		for i, r := range rows {
+			if ts.Cursor != "" && r.Path == ts.Cursor {
+				cursor = i
+				break
+			}
+		}
+		for cursor >= 0 && !shown[cursor] {
+			cursor = rows[cursor].Parent
+		}
+	}
 	lastAt := map[int]bool{}
 	var out []string
+	var marks []Mark
 	for i, r := range rows {
+		lastAt[r.Depth] = last[i]
+		if !shown[i] {
+			continue
+		}
 		var b strings.Builder
 		for k := 1; k < r.Depth; k++ {
 			if lastAt[k] {
@@ -41,15 +70,21 @@ func renderTree(d Directive, c Ctx) ([]string, error) {
 				b.WriteString(th.Text.Render("├── "))
 			}
 		}
-		lastAt[r.Depth] = last[i]
 		name := r.Name
 		if r.Folder {
 			if !strings.HasSuffix(name, "/") {
 				name += "/"
 			}
-			b.WriteString(th.Heading.Render(name))
+			if folds {
+				if ts.Closed[r.Path] {
+					name = "▸ " + name
+				} else {
+					name = "▾ " + name
+				}
+			}
+			b.WriteString(th.focus(th.Heading, i == cursor).Render(name))
 		} else {
-			b.WriteString(th.Text.Render(name))
+			b.WriteString(th.focus(th.Text, i == cursor).Render(name))
 		}
 		if r.Comment != "" {
 			b.WriteString("  " + th.Muted.Render("# "+r.Comment))
@@ -58,9 +93,10 @@ func renderTree(d Directive, c Ctx) ([]string, error) {
 		if xansi.StringWidth(line) > c.Width {
 			line = xansi.Truncate(line, c.Width, "…")
 		}
+		marks = append(marks, Mark{Key: c.Key, Kind: MarkRow, Line: len(out), Height: 1, Index: i, Path: r.Path})
 		out = append(out, line)
 	}
-	return out, nil
+	return out, marks, nil
 }
 
 // renderCodeTitle draws a title line over the code block Inner renders.

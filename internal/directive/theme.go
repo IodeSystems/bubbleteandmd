@@ -19,6 +19,10 @@ type Theme struct {
 	Link    lipgloss.Style
 	Code    lipgloss.Style
 	Muted   lipgloss.Style // dim: hints, hosts, `when` text
+	// Focus marks the focused header or tree row: reverse video, put over
+	// the part's own style (Style.Inherit). Zero in notty: no SGR there, so
+	// notty draws no focus; the host reads it from State.Focused.
+	Focus lipgloss.Style
 
 	// Quote is the blockquote indent token, e.g. "│ " or "| ". Never empty.
 	Quote string
@@ -66,6 +70,7 @@ func ThemeFrom(s ansi.StyleConfig, plain bool) Theme {
 	th.Link = prim(s.Link).Underline(true)
 	th.Code = prim(s.Code.StylePrimitive)
 	th.Muted = lipgloss.NewStyle().Faint(true)
+	th.Focus = lipgloss.NewStyle().Reverse(true)
 	if c := s.Text.Color; c != nil {
 		th.Muted = th.Muted.Foreground(lipgloss.Color(*c))
 	}
@@ -138,4 +143,12 @@ func prim(p ansi.StylePrimitive) lipgloss.Style {
 		st = st.Faint(true)
 	}
 	return st
+}
+
+// focus is st with Focus over it when on.
+func (th Theme) focus(st lipgloss.Style, on bool) lipgloss.Style {
+	if !on {
+		return st
+	}
+	return st.Inherit(th.Focus)
 }

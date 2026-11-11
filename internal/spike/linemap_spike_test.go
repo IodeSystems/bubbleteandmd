@@ -268,7 +268,7 @@ func (m *mirror) form(t *testing.T, d directive.Directive, w int) ([]string, []m
 		calls = append(calls, mp)
 		return mp.out, nil
 	}}
-	lines, err := directive.Render(d, c)
+	lines, _, err := directive.Render(d, c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,16 +363,12 @@ func (m *mirror) form(t *testing.T, d directive.Directive, w int) ([]string, []m
 			m.unmapped += len(c.marks)
 		}
 	}
+	// directive.Render draws After itself (L3), as the last Inner call.
 	if strings.TrimSpace(d.After) != "" {
-		after := m.inner(t, d.After, w)
+		after := calls[len(calls)-1]
 		if out := strings.Trim(after.out, "\n"); out != "" {
-			base := len(lines)
-			if len(lines) > 0 {
-				lines = append(lines, "")
-				base++
-			}
+			base := len(lines) - trimmedLines(after.out)
 			marks = append(marks, shift(after.marks, base-lead(after.out))...)
-			lines = append(lines, strings.Split(out, "\n")...)
 		}
 	}
 	return lines, marks

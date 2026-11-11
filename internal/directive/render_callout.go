@@ -17,25 +17,41 @@ func calloutBold(th Theme, s string) string {
 	return lipgloss.NewStyle().Bold(true).Render(s)
 }
 
-// calloutInner renders md at width and splits it into lines, dropping the
-// trailing blank lines. Each line is clipped to width.
-func calloutInner(c Ctx, md string, width int) ([]string, error) {
-	if strings.TrimSpace(md) == "" {
-		return nil, nil
+// calloutBoldStyle is the style calloutBold draws with.
+func calloutBoldStyle(th Theme) lipgloss.Style {
+	if th.Plain {
+		return lipgloss.NewStyle()
 	}
-	out, err := c.Inner(md, width)
+	return lipgloss.NewStyle().Bold(true)
+}
+
+// calloutInner renders md at width and splits it into lines, dropping the
+// trailing blank lines. Each line is clipped to width. slot names a form
+// body (Ctx.Body); "" renders through Inner, with no marks.
+func calloutInner(c Ctx, md string, width int, slot string) ([]string, []Mark, error) {
+	if strings.TrimSpace(md) == "" {
+		return nil, nil, nil
+	}
+	var out string
+	var marks []Mark
+	var err error
+	if slot == "" {
+		out, err = c.Inner(md, width)
+	} else {
+		out, marks, err = c.body(md, width, slot)
+	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out = strings.TrimRight(out, "\n")
 	if out == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	lines := strings.Split(out, "\n")
 	for i, l := range lines {
 		lines[i] = calloutClip(l, width)
 	}
-	return lines, nil
+	return lines, place(marks, 0, len(lines), 0), nil
 }
 
 func calloutClip(l string, width int) string {
@@ -61,10 +77,10 @@ func calloutPrefix(prefix string, lines []string, width int) []string {
 	return out
 }
 
-func renderCallout(d Directive, c Ctx) ([]string, error) {
+func renderCallout(d Directive, c Ctx) ([]string, []Mark, error) {
 	co := d.Callout
 	if co == nil {
-		return nil, errNotImplemented
+		return nil, nil, errNotImplemented
 	}
 	th := c.Theme
 	hue := th.Callout[co.Kind]
@@ -97,24 +113,32 @@ func renderCallout(d Directive, c Ctx) ([]string, error) {
 		remain -= n
 		lines = append(lines, hue.Render(l[:n])+calloutBold(th, l[n:]))
 	}
-	body, err := calloutInner(c, co.Body, inner)
+	body, marks, err := calloutInner(c, co.Body, inner, "b")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	marks = place(marks, 0, len(body), len(lines))
 	lines = append(lines, body...)
-	return calloutPrefix(styledBar, lines, c.Width), nil
+	return calloutPrefix(styledBar, lines, c.Width), marks, nil
 }
 
-func renderDetails(d Directive, c Ctx) ([]string, error) {
+// renderDetails draws "▾ Title" over the body, or "▸ Title" alone when
+// folded (State).
+func renderDetails(d Directive, c Ctx) ([]string, []Mark, error) {
 	de := d.Details
 	if de == nil {
-		return nil, errNotImplemented
+		return nil, nil, errNotImplemented
 	}
 	title := de.Title
 	if title == "" {
 		title = "Details"
 	}
-	const head, indent = "▾ ", "  "
+	folded := c.State.details(c.Key).Folded
+	head, indent := "▾ ", "  "
+	if folded {
+		head = "▸ "
+	}
+	focused := c.State.focused(c.Key)
 	inner := c.Width - 2
 	if inner < 1 {
 		inner = 1
@@ -125,13 +149,22 @@ func renderDetails(d Directive, c Ctx) ([]string, error) {
 		if i == 0 {
 			p = head
 		}
-		lines = append(lines, calloutClip(p+calloutBold(c.Theme, l), c.Width))
+		t := calloutBold(c.Theme, l)
+		if focused {
+			t = c.Theme.focus(calloutBoldStyle(c.Theme), true).Render(l)
+		}
+		lines = append(lines, calloutClip(p+t, c.Width))
 	}
-	body, err := calloutInner(c, de.Body, inner)
+	marks := []Mark{{Key: c.Key, Kind: MarkHeader, Line: 0, Height: len(lines)}}
+	if folded {
+		return lines, marks, nil
+	}
+	body, bm, err := calloutInner(c, de.Body, inner, "b")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return append(lines, calloutPrefix(indent, body, c.Width)...), nil
+	marks = append(marks, place(bm, 0, len(body), len(lines))...)
+	return append(lines, calloutPrefix(indent, body, c.Width)...), marks, nil
 }
 
 func renderAttribution(d Directive, c Ctx) ([]string, error) {
@@ -146,12 +179,12 @@ func renderAttribution(d Directive, c Ctx) ([]string, error) {
 		inner = 1
 	}
 	pq := th.Muted.Render(q)
-	lines, err := calloutInner(c, at.Quote, inner)
+	lines, _, err := calloutInner(c, at.Quote, inner, "")
 	if err != nil {
 		return nil, err
 	}
 	out := calloutPrefix(pq, lines, c.Width)
-	src, err := calloutInner(c, "— "+at.Source, inner)
+	src, _, err := calloutInner(c, "— "+at.Source, inner, "")
 	if err != nil {
 		return nil, err
 	}

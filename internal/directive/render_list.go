@@ -11,24 +11,40 @@ import (
 // listLines renders Markdown through c.Inner and returns its lines without
 // leading or trailing blank lines, each cut to width cells.
 func listLines(c Ctx, md string, width int) ([]string, error) {
+	lines, _, err := listBody(c, md, width, "")
+	return lines, err
+}
+
+// listBody is listLines for a form body under slot (Ctx.Body), with its
+// marks; slot "" renders through Inner.
+func listBody(c Ctx, md string, width int, slot string) ([]string, []Mark, error) {
 	if strings.TrimSpace(md) == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if width < 1 {
 		width = 1
 	}
-	s, err := c.Inner(md, width)
+	var s string
+	var marks []Mark
+	var err error
+	if slot == "" {
+		s, err = c.Inner(md, width)
+	} else {
+		s, marks, err = c.body(md, width, slot)
+	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	drop := 0
 	for len(lines) > 0 && strings.TrimSpace(ansi.Strip(lines[0])) == "" {
 		lines = lines[1:]
+		drop++
 	}
 	for i, l := range lines {
 		lines[i] = ansi.Truncate(strings.TrimRight(l, " "), width, "")
 	}
-	return lines, nil
+	return lines, place(marks, drop, len(lines), 0), nil
 }
 
 // listInline renders inline Markdown on one line, for a stat cell.
@@ -63,17 +79,18 @@ func listClamp(lines []string, width int) []string {
 
 func listDigits(n int) int { return len(strconv.Itoa(n)) }
 
-func renderSteps(d Directive, c Ctx) ([]string, error) {
+func renderSteps(d Directive, c Ctx) ([]string, []Mark, error) {
 	s := d.Steps
 	if s == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
+	var marks []Mark
 	th := c.Theme
 	var out []string
 	if s.Title != "" {
 		t, err := listLines(c, s.Title, c.Width)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		out = append(out, listStyle(th.Heading, t)...)
 	}
@@ -97,13 +114,13 @@ func renderSteps(d Directive, c Ctx) ([]string, error) {
 		if it.Title != "" {
 			t, err := listLines(c, it.Title, cw)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			head = listStyle(th.Heading, t)
 			if it.When != "" {
 				w, err := listInline(c, it.When, cw)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				w = th.Muted.Render(w)
 				if n := len(head); n > 0 && ansi.StringWidth(head[n-1])+1+ansi.StringWidth(w) <= cw {
@@ -114,10 +131,11 @@ func renderSteps(d Directive, c Ctx) ([]string, error) {
 				}
 			}
 		}
-		body, err := listLines(c, it.Body, cw)
+		body, bm, err := listBody(c, it.Body, cw, "s"+strconv.Itoa(i))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		marks = append(marks, place(bm, 0, len(body), len(out)+len(head))...)
 		lines := append(head, body...)
 		if len(lines) == 0 {
 			lines = []string{""}
@@ -135,7 +153,7 @@ func renderSteps(d Directive, c Ctx) ([]string, error) {
 			out = append(out, bare)
 		}
 	}
-	return listClamp(out, c.Width), nil
+	return listClamp(out, c.Width), marks, nil
 }
 
 func renderStats(d Directive, c Ctx) ([]string, error) {

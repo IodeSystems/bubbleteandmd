@@ -2,6 +2,7 @@ package bubbleteandmd
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	"charm.land/glamour/v2"
@@ -88,7 +89,37 @@ func (r *DirectiveRenderer) GlamourOptions() (ansi.Options, bool) {
 // Render renders md. An md that starts with join.Sentinel (as Stream sends
 // every block after the first) renders its first block in not-first place.
 func (r *DirectiveRenderer) Render(md string) (string, error) {
-	return r.render(&r.outer, Sanitize(md))
+	out, _, err := r.render(&r.outer, Sanitize(md), scope{})
+	return out, err
+}
+
+// renderState renders md as Render does, with each form drawn in its state
+// in st (nil: as streamed), and returns the marks of the interactive parts,
+// lines counted in out. offset is the document offset of md's text after
+// the sentinel: form keys are directive.IDs keys of the document. md should
+// be sanitized already, else offsets move.
+func (r *DirectiveRenderer) renderState(md string, offset int, st *directive.State) (string, []directive.Mark, error) {
+	return r.render(&r.outer, Sanitize(md), scope{on: true, base: offset, st: st})
+}
+
+// scope is where the forms of one render sit in the document: their keys
+// and their state. The zero scope draws forms as streamed and gives no
+// marks.
+type scope struct {
+	on bool
+	// parent is the key of the body ("<form key>/<slot>"), "" at top level.
+	parent string
+	// base is the document offset of the rendered text, top level only.
+	base int
+	st   *directive.State
+}
+
+// key is the FormID.Key of a form at byte rel of the rendered text.
+func (sc scope) key(rel int) string {
+	if sc.parent == "" {
+		return strconv.Itoa(sc.base + rel)
+	}
+	return sc.parent + "@" + strconv.Itoa(rel)
 }
 
 // parsed is one top-level block: its source with `$$` formulas made math
@@ -99,7 +130,14 @@ type parsed struct {
 	form bool
 }
 
-func (r *DirectiveRenderer) render(t *target, md string) (string, error) {
+// piece is a rendered piece and the marks in it, lines counted from its
+// first line.
+type piece struct {
+	text  string
+	marks []directive.Mark
+}
+
+func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []directive.Mark, error) {
 	body, first := md, true
 	if strings.HasPrefix(md, join.Sentinel) {
 		body, first = md[len(join.Sentinel):], false
@@ -116,22 +154,41 @@ func (r *DirectiveRenderer) render(t *target, md string) (string, error) {
 		}
 	}
 	if plain {
-		return t.g.Render(langs.plainUnknownLangs(md))
+		out, err := t.g.Render(langs.plainUnknownLangs(md))
+		return out, nil, err
 	}
-	var pieces []string
+	var pieces []piece
 	for i, p := range ps {
 		var err error
-		if pieces, err = r.block(t, pieces, p, first && i == 0); err != nil {
-			return "", err
+		if pieces, err = r.block(t, pieces, p, bs[i].Offset, first && i == 0, sc); err != nil {
+			return "", nil, err
 		}
 	}
-	return join.Join(t.p, t.s, pieces), nil
+	texts := make([]string, len(pieces))
+	for i, x := range pieces {
+		texts[i] = x.text
+	}
+	// Piece k starts at line count(P) + the "\n" in the pieces before it:
+	// join drops cells on a shared line, never a "\n"
+	// (internal/spike/linemap_spike_test.go).
+	var marks []directive.Mark
+	line := strings.Count(t.p, "\n")
+	for _, x := range pieces {
+		for _, m := range x.marks {
+			m.Line += line
+			marks = append(marks, m)
+		}
+		line += strings.Count(x.text, "\n")
+	}
+	return join.Join(t.p, t.s, texts), marks, nil
 }
 
-// block appends the pieces of one top-level block: Markdown around a form
-// renders through glamour, a form draws as a framed piece.
-func (r *DirectiveRenderer) block(t *target, pieces []string, p parsed, first bool) ([]string, error) {
+// block appends the pieces of one top-level block, at byte at of the
+// rendered text: Markdown around a form renders through glamour, a form
+// draws as a framed piece.
+func (r *DirectiveRenderer) block(t *target, pieces []piece, p parsed, at int, first bool, sc scope) ([]piece, error) {
 	src, d, ok := p.src, p.d, p.form
+	pos := 0
 	for {
 		if !ok {
 			return r.glamourPiece(t, pieces, src, first)
@@ -143,42 +200,45 @@ func (r *DirectiveRenderer) block(t *target, pieces []string, p parsed, first bo
 		if len(pieces) > 0 {
 			first = false
 		}
-		lines, err := r.form(d, t.width)
+		lines, marks, err := r.form(d, t.width, sc, at+pos+d.Start)
 		if err != nil {
 			return nil, err
 		}
 		if len(lines) > 0 {
-			pieces = append(pieces, directive.Frame(lines, t.width, t.frame, first))
+			if !first {
+				// Frame's leading blank line
+				for i := range marks {
+					marks[i].Line++
+				}
+			}
+			pieces = append(pieces, piece{directive.Frame(lines, t.width, t.frame, first), marks})
 			first = false
 		}
 		src = src[d.End:]
+		pos += d.End
 		d, ok = directive.Parse(src)
 	}
 }
 
-// form draws d at content width w, with the Markdown quoted after a list
-// form (Directive.After) below it.
-func (r *DirectiveRenderer) form(d directive.Directive, w int) ([]string, error) {
-	c := directive.Ctx{Width: w, Theme: r.theme, Inner: r.inner}
-	lines, err := directive.Render(d, c)
-	if err != nil || strings.TrimSpace(d.After) == "" {
-		return lines, err
+// form draws d at content width w; rel is its byte offset in the rendered
+// text, for its key.
+func (r *DirectiveRenderer) form(d directive.Directive, w int, sc scope, rel int) ([]string, []directive.Mark, error) {
+	c := directive.Ctx{Width: w, Theme: r.theme, Inner: func(md string, w int) (string, error) {
+		out, _, err := r.inner(md, w, scope{})
+		return out, err
+	}}
+	if !sc.on {
+		lines, _, err := directive.Render(d, c)
+		return lines, nil, err
 	}
-	after, err := r.inner(d.After, w)
-	if err != nil {
-		return nil, err
+	c.Key, c.State = sc.key(rel), sc.st
+	c.Body = func(md string, w int, slot string) (string, []directive.Mark, error) {
+		return r.inner(md, w, scope{on: true, parent: c.Key + "/" + slot, st: sc.st})
 	}
-	after = strings.Trim(after, "\n")
-	if after == "" {
-		return lines, nil
-	}
-	if len(lines) > 0 {
-		lines = append(lines, "")
-	}
-	return append(lines, strings.Split(after, "\n")...), nil
+	return directive.Render(d, c)
 }
 
-func (r *DirectiveRenderer) glamourPiece(t *target, pieces []string, src string, first bool) ([]string, error) {
+func (r *DirectiveRenderer) glamourPiece(t *target, pieces []piece, src string, first bool) ([]piece, error) {
 	if strings.TrimSpace(src) == "" {
 		return pieces, nil
 	}
@@ -186,19 +246,19 @@ func (r *DirectiveRenderer) glamourPiece(t *target, pieces []string, src string,
 	if err != nil {
 		return nil, err
 	}
-	piece, err := join.Strip(out, t.p, t.s)
+	p, err := join.Strip(out, t.p, t.s)
 	if err != nil {
 		return nil, err
 	}
-	if piece == "" {
+	if p == "" {
 		return pieces, nil
 	}
-	return append(pieces, piece), nil
+	return append(pieces, piece{text: p}), nil
 }
 
 // inner renders a form body at content width w: margin 0, no pad cells.
 // Forms in it draw too (Carl B2: forms nest inside form bodies).
-func (r *DirectiveRenderer) inner(md string, w int) (string, error) {
+func (r *DirectiveRenderer) inner(md string, w int, sc scope) (string, []directive.Mark, error) {
 	w = max(w, 1)
 	t, ok := r.inners[w]
 	if !ok {
@@ -209,23 +269,23 @@ func (r *DirectiveRenderer) inner(md string, w int) (string, error) {
 		all = append(all, glamour.WithStyles(st), glamour.WithWordWrap(w))
 		g, err := glamour.NewTermRenderer(all...)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		t = &target{g: g, width: w}
 		if err := t.affixes(); err != nil {
-			return "", err
+			return "", nil, err
 		}
 		r.inners[w] = t
 	}
-	out, err := r.render(t, md)
+	out, marks, err := r.render(t, md, sc)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	lines := strings.Split(out, "\n")
 	for i, l := range lines {
 		lines[i] = padRe.ReplaceAllString(l, "")
 	}
-	return strings.Join(lines, "\n"), nil
+	return strings.Join(lines, "\n"), marks, nil
 }
 
 // padRe is a line's trailing pad cells: plain or styled spaces.

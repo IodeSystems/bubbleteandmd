@@ -40,7 +40,7 @@ func TestTreeGolden(t *testing.T) {
 	for _, name := range []string{"dark", "light", "notty"} {
 		for _, w := range []int{36, 76} {
 			c := codeCtx(t, name, w)
-			lines, err := renderTree(firstDirective(t, codeTreeSrc), c)
+			lines, _, err := renderTree(firstDirective(t, codeTreeSrc), c)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,7 +78,7 @@ func TestTreeNarrowNoPanic(t *testing.T) {
 		c := codeCtx(t, name, 10)
 		for _, src := range []string{codeTreeSrc, codeTitleSrc} {
 			d := firstDirective(t, src)
-			lines, err := Render(d, c)
+			lines, _, err := Render(d, c)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,7 +91,7 @@ func TestTreeDeepCommentsUnicode(t *testing.T) {
 	src := "```tree\nroot/\n└── a/\n    └── b/\n        └── c/\n            ├── 日本語ファイル.txt  # 説明 text\n            └── café.go\n```\n"
 	for _, w := range []int{36, 76} {
 		c := codeCtx(t, "dark", w)
-		lines, err := renderTree(firstDirective(t, src), c)
+		lines, _, err := renderTree(firstDirective(t, src), c)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +102,7 @@ func TestTreeDeepCommentsUnicode(t *testing.T) {
 
 func TestTreePlainRowAndFence(t *testing.T) {
 	c := codeCtx(t, "notty", 40)
-	lines, err := renderTree(Directive{Kind: KindTree, Tree: &Tree{Rows: ParseTree("??? weird\nfile.txt")}}, c)
+	lines, _, err := renderTree(Directive{Kind: KindTree, Tree: &Tree{Rows: ParseTree("??? weird\nfile.txt")}}, c)
 	if err != nil || len(lines) != 2 {
 		t.Fatalf("%v %q", err, lines)
 	}

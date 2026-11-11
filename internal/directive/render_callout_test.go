@@ -57,7 +57,7 @@ func TestCalloutDetailsAttribution(t *testing.T) {
 		for _, style := range []string{"dark", "light", "notty"} {
 			for _, w := range []int{36, 76} {
 				t.Run(fmt.Sprintf("%s/%s/%d", name, style, w), func(t *testing.T) {
-					lines, err := Render(d, calloutCtx(t, style, w))
+					lines, _, err := Render(d, calloutCtx(t, style, w))
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -80,7 +80,7 @@ func TestCalloutDetailsAttributionNarrow(t *testing.T) {
 	for name, d := range calloutCases() {
 		for _, style := range []string{"dark", "notty"} {
 			for _, w := range []int{1, 2, 3, 10} {
-				lines, err := Render(d, calloutCtx(t, style, w))
+				lines, _, err := Render(d, calloutCtx(t, style, w))
 				if err != nil {
 					t.Fatalf("%s %d: %v", name, w, err)
 				}

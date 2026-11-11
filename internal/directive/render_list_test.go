@@ -63,7 +63,7 @@ func TestListForms(t *testing.T) {
 		for _, style := range []string{"dark", "light", "notty"} {
 			for _, w := range []int{36, 76, 10} {
 				c := listCtx(t, style, w)
-				lines, err := Render(d, c)
+				lines, _, err := Render(d, c)
 				if err != nil {
 					t.Fatalf("%s/%s/%d: %v", f.name, style, w, err)
 				}

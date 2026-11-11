@@ -1,0 +1,20 @@
+macOS · Linux · Windows
+
+▸ macOS ────────────────────────────
+Install with **brew** and then run
+the setup command to finish.
+
+  brew install llx
+
+▸ Linux ────────────────────────────
+Use the package manager of your
+distribution, for example apt.
+
+▸ Windows ──────────────────────────
+• scoop
+• winget
+--- marks
+7 header line 0 height 1 index 0 
+7 panel line 2 height 5 index 0 
+7 panel line 8 height 3 index 1 
+7 panel line 12 height 3 index 2 

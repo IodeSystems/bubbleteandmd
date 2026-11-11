@@ -328,7 +328,7 @@ func TestDirectiveNoForeignEscapes(t *testing.T) {
 		for _, dd := range payloadDirectiveDocs {
 			for _, p := range payloads {
 				if d, ok := directive.Parse(strings.ReplaceAll(dd.text, "X", p.text)); ok {
-					if lines, err := directive.Render(d, c); err == nil && foreign(strings.Join(lines, "\n")) != "" {
+					if lines, _, err := directive.Render(d, c); err == nil && foreign(strings.Join(lines, "\n")) != "" {
 						raw++
 					}
 				}
@@ -338,7 +338,7 @@ func TestDirectiveNoForeignEscapes(t *testing.T) {
 					t.Errorf("%s/%s/%s: no directive in %q", style, dd.name, p.name, src)
 					continue
 				}
-				lines, err := directive.Render(d, c)
+				lines, _, err := directive.Render(d, c)
 				if err != nil {
 					t.Errorf("%s/%s/%s: %v", style, dd.name, p.name, err)
 					continue

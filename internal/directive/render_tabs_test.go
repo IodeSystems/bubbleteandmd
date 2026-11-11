@@ -68,7 +68,7 @@ func TestTabsGolden(t *testing.T) {
 	for _, style := range []string{"dark", "light", "notty"} {
 		for _, w := range []int{36, 64, 76} {
 			c := tabsCtx(t, style, w)
-			lines, err := renderTabs(tabsDir(), c)
+			lines, _, err := renderTabs(tabsDir(), c)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -86,7 +86,7 @@ func TestVerdictGolden(t *testing.T) {
 		for _, w := range []int{36, 64, 76} {
 			c := tabsCtx(t, style, w)
 			for name, d := range map[string]Directive{"pc": verdictDir(false), "cp": verdictDir(true)} {
-				lines, err := renderVerdict(d, c)
+				lines, _, err := renderVerdict(d, c)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -97,7 +97,7 @@ func TestVerdictGolden(t *testing.T) {
 				golden(t, fmt.Sprintf("verdict_%s_%s_%d", name, style, w), strings.Join(lines, "\n")+"\n")
 			}
 			only := Directive{Kind: KindVerdict, Verdict: &Verdict{ProsTitle: "Why", Pros: []Item{{Body: "One reason."}}}}
-			lines, err := renderVerdict(only, c)
+			lines, _, err := renderVerdict(only, c)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -109,7 +109,7 @@ func TestVerdictGolden(t *testing.T) {
 
 func TestVerdictColumnsAlign(t *testing.T) {
 	c := tabsCtx(t, "notty", 64)
-	lines, err := renderVerdict(verdictDir(false), c)
+	lines, _, err := renderVerdict(verdictDir(false), c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestTabsVerdictNarrow(t *testing.T) {
 		for _, w := range []int{1, 2, 3, 5, 10} {
 			c := tabsCtx(t, style, w)
 			for _, d := range []Directive{tabsDir(), verdictDir(false), verdictDir(true)} {
-				lines, err := Render(d, c)
+				lines, _, err := Render(d, c)
 				if err != nil {
 					t.Fatal(err)
 				}

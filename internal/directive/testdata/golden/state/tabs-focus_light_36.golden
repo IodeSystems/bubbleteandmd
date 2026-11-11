@@ -1,0 +1,20 @@
+[7;2mmacOS · Linux · Windows[m
+
+[1;38;5;27m▸ macOS[m [2m────────────────────────────[m
+[38;5;234mInstall with [m[38;5;234;1mbrew[m[38;5;234m and then run the[m
+[38;5;234msetup command to[m[38;5;234m finish.[m
+
+[38;5;234m [m[38;5;234m [m[38;5;251mbrew install llx[m
+
+[1;38;5;27m▸ Linux[m [2m────────────────────────────[m
+[38;5;234mUse the package manager of your[m
+[38;5;234mdistribution, for example [m[38;5;203;48;5;254m apt [m[38;5;234m.[m
+
+[1;38;5;27m▸ Windows[m [2m──────────────────────────[m
+[38;5;234m• [m[38;5;234mscoop[m
+[38;5;234m• [m[38;5;234mwinget[m
+--- marks
+7 header line 0 height 1 index 0 
+7 panel line 2 height 5 index 0 
+7 panel line 8 height 3 index 1 
+7 panel line 12 height 3 index 2 
