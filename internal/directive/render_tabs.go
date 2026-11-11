@@ -83,8 +83,8 @@ func renderTabs(d Directive, c Ctx) ([]string, []Mark, error) {
 		}
 		lines = append(lines, body...)
 		marks := []Mark{
-			{Key: c.Key, Kind: MarkHeader, Line: 0, Height: 1, Index: i},
-			{Key: c.Key, Kind: MarkPanel, Line: 0, Height: len(lines), Index: i},
+			{Key: c.Key, Kind: MarkHeader, Line: 0, Height: 1, Index: i, Panels: len(t.Panels)},
+			{Key: c.Key, Kind: MarkPanel, Line: 0, Height: len(lines), Index: i, Panels: len(t.Panels)},
 		}
 		return lines, append(marks, place(bm, 0, len(body), 1)...), nil
 	}
@@ -93,7 +93,7 @@ func renderTabs(d Directive, c Ctx) ([]string, []Mark, error) {
 		labels[i] = p.Label
 	}
 	lines := []string{c.Theme.focus(c.Theme.Muted, focused).Render(tabsFit(strings.Join(labels, " · "), w))}
-	marks := []Mark{{Key: c.Key, Kind: MarkHeader, Line: 0, Height: 1}}
+	marks := []Mark{{Key: c.Key, Kind: MarkHeader, Line: 0, Height: 1, Panels: len(t.Panels)}}
 	for i, p := range t.Panels {
 		lines = append(lines, "")
 		at := len(lines)
@@ -102,7 +102,7 @@ func renderTabs(d Directive, c Ctx) ([]string, []Mark, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		marks = append(marks, Mark{Key: c.Key, Kind: MarkPanel, Line: at, Height: 1 + len(body), Index: i})
+		marks = append(marks, Mark{Key: c.Key, Kind: MarkPanel, Line: at, Height: 1 + len(body), Index: i, Panels: len(t.Panels)})
 		marks = append(marks, place(bm, 0, len(body), len(lines))...)
 		lines = append(lines, body...)
 	}

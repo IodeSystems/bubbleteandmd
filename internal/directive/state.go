@@ -100,6 +100,11 @@ type Mark struct {
 	Index int
 	// Path is the TreeRow.Path (MarkRow).
 	Path string
+	// Panels is the number of panels of a tabs form (MarkHeader and
+	// MarkPanel of tabs; 0 on a details header).
+	Panels int
+	// Folder: the row is a folder (MarkRow).
+	Folder bool
 }
 
 // place keeps the marks of a text whose first drop lines were dropped and

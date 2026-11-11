@@ -100,7 +100,7 @@ func renderTree(d Directive, c Ctx) ([]string, []Mark, error) {
 		if xansi.StringWidth(line) > c.Width {
 			line = xansi.Truncate(line, c.Width, "…")
 		}
-		marks = append(marks, Mark{Key: c.Key, Kind: MarkRow, Line: len(out), Height: 1, Index: i, Path: r.Path})
+		marks = append(marks, Mark{Key: c.Key, Kind: MarkRow, Line: len(out), Height: 1, Index: i, Path: r.Path, Folder: r.Folder})
 		out = append(out, line)
 	}
 	return out, marks, nil
