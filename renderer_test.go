@@ -250,3 +250,25 @@ func TestRendererDraws(t *testing.T) {
 		t.Fatalf("not-first render does not open with a blank line: %q", later)
 	}
 }
+
+// TestRendererTinyWidth: a width too small for a form's frame (bars,
+// gutters, borders) draws what fits; it does not panic.
+func TestRendererTinyWidth(t *testing.T) {
+	for _, style := range []string{"dark", "notty"} {
+		for w := 0; w <= 5; w++ {
+			for _, c := range directiveDocs(t) {
+				func() {
+					defer func() {
+						if p := recover(); p != nil {
+							t.Errorf("%s/w%d/%s: panic: %v", style, w, c.name, p)
+						}
+					}()
+					r := newTestRenderer(t, style, w)
+					if _, err := r.Render(c.text); err != nil {
+						t.Errorf("%s/w%d/%s: %v", style, w, c.name, err)
+					}
+				}()
+			}
+		}
+	}
+}

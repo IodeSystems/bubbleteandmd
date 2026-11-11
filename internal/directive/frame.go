@@ -43,8 +43,9 @@ func StyleOf(s ansi.StyleConfig, plain bool) Style {
 // the frame glamour gives a paragraph piece: margin, line, pad cells up to
 // width, newline. width is the content width (line width minus margin). A
 // piece that is not first starts with one blank line, as glamour's paragraph
-// spacing does.
+// spacing does. A width below 0 is 0.
 func Frame(lines []string, width int, s Style, first bool) string {
+	width = max(width, 0)
 	var b strings.Builder
 	blank := s.Margin + strings.Repeat(s.Cell, width) + "\n"
 	if !first {

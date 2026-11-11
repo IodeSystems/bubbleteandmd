@@ -92,3 +92,14 @@ func TestRenderUnknownKind(t *testing.T) {
 		t.Fatal("want error")
 	}
 }
+
+func TestFrameNegativeWidth(t *testing.T) {
+	defer func() {
+		if p := recover(); p != nil {
+			t.Errorf("Frame(width -1) panics: %v", p)
+		}
+	}()
+	if got := Frame([]string{"x"}, -1, Style{Cell: " "}, false); got != "\nx\n" {
+		t.Errorf("Frame(width -1) = %q", got)
+	}
+}
