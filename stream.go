@@ -1,6 +1,7 @@
 package bubbleteandmd
 
 import (
+	"errors"
 	"strings"
 	"sync"
 
@@ -12,9 +13,21 @@ import (
 
 // Renderer renders one whole Markdown document. *glamour.TermRenderer
 // satisfies it. A Renderer is used by one goroutine at a time.
+//
+// Pass a raw *glamour.TermRenderer (or a DirectiveRenderer), not a wrapper
+// that changes its output: Stream renders each block alone and joins the
+// pieces by the document prefix, suffix and line ends glamour writes. A
+// wrapper that trims the newlines makes Frame and Final return ErrTrimmed.
+// Do pre-processing on src before Frame; do post-processing on the output
+// of Frame and Final.
 type Renderer interface {
 	Render(string) (string, error)
 }
+
+// ErrTrimmed is returned by Frame and Final when the Renderer ends a
+// paragraph without its newline (a wrapper that trims glamour's output):
+// the blocks cannot be joined as the whole document renders.
+var ErrTrimmed = errors.New("bubbleteandmd: Renderer output ends a paragraph without a newline; pass a raw *glamour.TermRenderer")
 
 // cacheKey: a block renders differently when it is first in the document
 // (no Sentinel before it).
@@ -68,6 +81,8 @@ type Stream struct {
 	// p, s: document prefix and suffix, from the render of "".
 	p, s  string
 	ready bool
+	// err: the Renderer cannot be joined (setup); returned by every call.
+	err error
 	// seen, when set (tests), sees every text given to the splitter.
 	seen func(src string)
 }
@@ -88,11 +103,7 @@ func (s *Stream) Final(src string) (string, error) { return s.render(src, false)
 
 func (s *Stream) render(src string, healed bool) (string, error) {
 	if !s.ready {
-		empty, err := s.r.Render("")
-		if err != nil {
-			return "", err
-		}
-		if s.p, s.s, err = join.Affixes(empty); err != nil {
+		if err := s.setup(); err != nil {
 			return "", err
 		}
 		s.ready = true
@@ -131,6 +142,35 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		pieces = append(pieces, piece)
 	}
 	return join.Join(s.p, s.s, pieces), nil
+}
+
+// setup reads the document prefix and suffix and checks that a paragraph
+// piece ends with its newline. Errors that are the Renderer's (not glamour's
+// render error) are kept and returned by every later call.
+func (s *Stream) setup() error {
+	if s.err != nil {
+		return s.err
+	}
+	empty, err := s.r.Render("")
+	if err != nil {
+		return err
+	}
+	if s.p, s.s, err = join.Affixes(empty); err != nil {
+		s.err = err
+		return err
+	}
+	// glamour ends every paragraph line with "\n"; with no "\n" each piece
+	// would join as an open line (join.Join drops cells), and the output
+	// would be wrong with no error.
+	probe, err := s.piece("x\n", false)
+	if err != nil {
+		return err
+	}
+	if !strings.HasSuffix(probe, "\n") {
+		s.err = ErrTrimmed
+		return s.err
+	}
+	return nil
 }
 
 // block renders a stable block, from the cache when it is there.

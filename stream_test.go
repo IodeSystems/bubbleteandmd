@@ -1,6 +1,7 @@
 package bubbleteandmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -227,6 +228,31 @@ func TestCacheKeyOwnsSource(t *testing.T) {
 		src = strings.Clone(text)
 		if _, err := s.Frame(src); err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+// trimmed wraps a Renderer and trims the newlines glamour writes at both
+// ends: what a caller does to print the output with no blank lines.
+type trimmed struct{ r Renderer }
+
+func (t trimmed) Render(s string) (string, error) {
+	o, err := t.r.Render(s)
+	return strings.Trim(o, "\n"), err
+}
+
+// TestTrimmedRenderer: a Renderer whose pieces cannot be joined is an
+// error, not wrong output.
+func TestTrimmedRenderer(t *testing.T) {
+	r, err := glamour.NewTermRenderer(glamour.WithStandardStyle("dark"), glamour.WithWordWrap(40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := "```\nx\n```\n# head\n\npara one\n\npara two\n\nthree\n"
+	s := NewStream(trimmed{r}, "k", nil)
+	for _, f := range []func(string) (string, error){s.Frame, s.Final} {
+		if out, err := f(src); !errors.Is(err, ErrTrimmed) {
+			t.Errorf("err = %v, want ErrTrimmed; out %q", err, out)
 		}
 	}
 }
