@@ -207,8 +207,9 @@ Test: headless model (TestModelHeadless: ticks, keys, mid-stream resize; left vi
 ### ◐ Upstream flowdown v0.5.0 (llx-markdown renamed; pulled 2026-11-12, 1032274, was f34895b)
 Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (browser DOM focus; TUI target draws only) → layer 3 is ours.
 - ✅ NOTICE/README name the rename (7beeb06); `make install` / `go install …/cmd/demo@latest` (clean module cache: builds).
-- ◐ nesting cap (flowdown: blocks/inline 100, link-dest parens 32; Carl OK): measure first, port only if deep input is super-linear or crashes.
-- ◐ M1 bench rerun: upstream v0.5.0 vs ours at 7beeb06 → bench/results/*-1032274.md, *-7beeb06.md.
+- ❓ nesting cap: built on feat/nesting-caps (137c0da..23b8a4d; tests green). `>`×80 was >60 s, emphasis ×40000 stack overflow. **blocking decision**: block cap 16 (built) / 8 / 100 (flowdown; glamour still hangs), and merge.
+- ✅ M1 bench rerun (bench/results/llx-m1max-1032274.md, llx-method-m1max-7beeb06.md): ours/upstream now 2.7× (chat-5k) to 69× (code-50k token);
+  upstream faster on long-100k 468→249, thread-30 118→69; ours ±6% vs ccd1caf except table-20k 814→1404 (single-line rows, known, unprofiled).
 - Upstream drafts target chroma/glamour/x only; chroma v2.27.0, glamour v2.0.1, x/ansi v0.11.9 are still the latest (go list 2026-11-12).
 - **risks**: flowdown's TUI target diff colouring (+/-/@@ by first char) is simpler than ours; not a syntax change.
 
