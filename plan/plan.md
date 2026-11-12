@@ -204,6 +204,14 @@ Test: headless model (TestModelHeadless: ticks, keys, mid-stream resize; left vi
   `go test -short -timeout 60m ./...`: all ok (exit 0), root 1456 s, vet clean.
 - Assumed: "dropped" = ticks with new tokens a pane never drew; space pauses (toggle is enter only in the demo's KeyMap).
 
+### ◐ Upstream flowdown v0.5.0 (llx-markdown renamed; pulled 2026-11-12, 1032274, was f34895b)
+Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (browser DOM focus; TUI target draws only) → layer 3 is ours.
+- ✅ NOTICE/README name the rename (7beeb06); `make install` / `go install …/cmd/demo@latest` (clean module cache: builds).
+- ◐ nesting cap (flowdown: blocks/inline 100, link-dest parens 32; Carl OK): measure first, port only if deep input is super-linear or crashes.
+- ◐ M1 bench rerun: upstream v0.5.0 vs ours at 7beeb06 → bench/results/*-1032274.md, *-7beeb06.md.
+- Upstream drafts target chroma/glamour/x only; chroma v2.27.0, glamour v2.0.1, x/ansi v0.11.9 are still the latest (go list 2026-11-12).
+- **risks**: flowdown's TUI target diff colouring (+/-/@@ by first char) is simpler than ours; not a syntax change.
+
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
 - Assumption: benchmark code lives in the repo (`bench/` package, `_test.go`), committed as `test:`/`chore:`.
