@@ -34,6 +34,24 @@ type Theme struct {
 
 	// Frame is the piece frame glamour puts around a paragraph.
 	Frame Style
+
+	// Diff holds the background tints of a ```diff fence (256-colour
+	// indexes); zero in notty.
+	Diff DiffTints
+}
+
+// DiffTints are a diff's line and word backgrounds: an added or removed
+// line, and a changed word in a paired line (stronger).
+type DiffTints struct {
+	Added, Removed, AddedWord, RemovedWord uint8
+}
+
+// diffTints: dark, light. Dark: 22 #005f00, 28 #008700, 52 #5f0000, 88
+// #870000 under the light code text; light: 194 #d7ffd7, 157 #afffaf,
+// 224 #ffd7d7, 217 #ffafaf under the dark text.
+var diffTints = [2]DiffTints{
+	{Added: 22, AddedWord: 28, Removed: 52, RemovedWord: 88},
+	{Added: 194, AddedWord: 157, Removed: 224, RemovedWord: 217},
 }
 
 // PlainStyle tells notty from coloured: a glamour style is notty (styles.NoTTYStyleConfig,
@@ -84,6 +102,7 @@ func ThemeFrom(s ansi.StyleConfig, plain bool) Theme {
 	for k, h := range calloutHue {
 		th.Callout[k] = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.ANSIColor(h[idx]))
 	}
+	th.Diff = diffTints[idx]
 	return th
 }
 

@@ -66,7 +66,7 @@ func newTestRenderer(t *testing.T, style string, w int) *DirectiveRenderer {
 	return r
 }
 
-// hasForm reports whether any top-level block of text holds a form or a
+// hasForm reports whether any top-level block of text holds a form, a diff fence or a
 // `$$` formula: whether the renderer draws anything glamour does not.
 func hasForm(text string) bool {
 	for _, b := range blocks.Split(text) {
@@ -74,6 +74,9 @@ func hasForm(text string) bool {
 			return true
 		}
 		if _, ok := mathFences(b.Source); ok {
+			return true
+		}
+		if _, ok := diffFence(b.Source); ok {
 			return true
 		}
 	}
