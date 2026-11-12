@@ -65,10 +65,13 @@ scrolled up); unconstrained (height 0) → render all, scroll keys return false,
   longer matters); tablehold counts `x | y` body rows; tree toggle always consumed on a focused tree; Doc/viewport cursor row =
   renderer's (`directive.CursorRow`); scroll drops a pending reveal (kept, tested); width change = new Doc + `*nd.State() = *old.State()`
   (TestDocStateNewWidth, no new API); Doc comment states the held-table exception.
-  Reported, not changed: lone header line → paragraph → `table…`; a wrapped header shrinks that frame (79 cells w50: 6→5 lines).
+  Lone header line → paragraph → `table…` shrink (79 cells w50: 6→5 lines): fixed by Carl option A (below).
   **risks (L6)**: h below the first frame's height (h 1-2) or a tall first frame opens at the top and does not follow; CursorRow
   reads ancestry from TreeRow.Path (`plain#i`): a made-up Cursor path under a drawn folder now shows on that folder (was: row 0).
   `go test -short -timeout 60m ./...` with L6: all ok (exit 0), root 524 s, vet clean.
+- ✅ L6b lone table header held from its first `|` (Carl option A; decisions.md "table hold, lone header"): no paragraph → `table…`
+  shrink; not a table → placeholder grows to a paragraph. Spike mirror updated (also its stale body-row count).
+  **risks**: prose that starts with `|` shows `table…` until its 2nd line; `| a |\n---` (setext-like) held as a 0-row table (as before).
 - ◻ L7 docs
   dun adoption: NewStream → NewDoc, Focus when its answer is entered (like insideWide); viewport mode only if dun hands the pane to the Doc.
   **blocking decision (Carl, open 2026-11-11)**: whether/how dun's input handling splits out into a shared lib — L5 built only what Doc needs.

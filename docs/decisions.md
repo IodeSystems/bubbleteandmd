@@ -256,7 +256,23 @@
     API. The copy shares the maps; the old Doc is not used again.
     Height, Offset and the Blur memory are not copied (host calls
     SetHeight).
-  - Lone table header: `| a | b |` alone draws as a paragraph, then as
-    the one-line `table…` when the delimiter row arrives; a header that
-    wraps (79 cells at w50: 6 → 5 lines) makes that frame shrink by the
-    wrapped lines. Kept (Carl's hold design); reported.
+  - Lone table header: `| a | b |` alone drew as a paragraph, then as
+    the one-line `table…` when the delimiter row arrived; a header that
+    wraps (79 cells at w50: 6 → 5 lines) made that frame shrink. Fixed:
+    see "table hold, lone header" below.
+- 2026-11-11 (table hold, lone header, Carl option A): the hold starts at
+  the first byte of a last tail block that starts with `|`: a first line
+  alone is held (unless a blank line follows it), and a partial second
+  line of only ` \t|:-` is held (the delimiter row can still be typing).
+  So a header never draws as a paragraph and the frame does not shrink
+  when the delimiter row arrives. When the second line cannot be a
+  delimiter row (a whole line that is not one, or a partial line with
+  another character), the tail draws as normal: one placeholder line →
+  a paragraph of ≥ 1 line, so the frame only grows. Scope unchanged: only
+  a tail block whose text starts with `|` (not `|` lines in a fence,
+  list item or after prose in the same block). Frame only; Final
+  unchanged. Cost: a prose paragraph that starts with `|` shows `table…`
+  until its second line or the next block. Tests: TestHeldTable,
+  TestTableHoldHeaderLine (every byte prefix, 9 and 79-cell headers,
+  dark/notty, w50/w78: no shrink, held from the first `|`),
+  TestTableHoldNotTable, TestTableHoldScope.
