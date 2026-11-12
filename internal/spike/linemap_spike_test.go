@@ -433,19 +433,29 @@ const (
 
 var tableDelimLine = regexp.MustCompile(`^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$`)
 
+// delimStart: a partial line that can still become a delimiter row.
+var delimStart = regexp.MustCompile(`^[ \t|:-]*$`)
+
+// heldTable mirrors tablehold.go (lone `|` header line held too).
 func heldTable(tail string) bool {
 	if !strings.HasPrefix(tail, "|") {
 		return false
 	}
 	lines := strings.Split(strings.TrimRight(tail, "\n"), "\n")
-	if len(lines) < 2 || !tableDelimLine.MatchString(lines[1]) {
-		return false
+	if len(lines) == 1 {
+		// header row alone; a blank line after it ends the block
+		return !strings.HasSuffix(tail, "\n\n")
+	}
+	if !tableDelimLine.MatchString(lines[1]) {
+		// the delimiter row can still be typing
+		return len(lines) == 2 && !strings.HasSuffix(tail, "\n") && delimStart.MatchString(lines[1])
 	}
 	body := 0
 	for _, l := range lines[2:] {
-		if strings.HasPrefix(l, "|") {
-			body++
+		if strings.TrimSpace(l) == "" {
+			break
 		}
+		body++
 	}
 	return body < holdRows
 }

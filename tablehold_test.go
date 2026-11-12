@@ -16,7 +16,14 @@ func TestHeldTable(t *testing.T) {
 		src  string
 		want bool
 	}{
-		{"| a | b |\n", false}, // no delimiter row yet
+		{"| a", true},            // header still typing
+		{"| a | b |\n", true},    // no delimiter row yet: held (option A)
+		{"| a | b |\n\n", false}, // a blank line ends it: a paragraph
+		{"| a | b |\n|", true},   // delimiter row still typing
+		{"| a | b |\n| -", true},
+		{"| a | b |\n|  |\n", false}, // whole second line, not a delimiter row
+		{"| a | b |\nx", false},
+		{"| not a", true},
 		{hdr, true},
 		{hdr + strings.Repeat(row, holdRows-1), true},
 		{hdr + strings.Repeat(row, holdRows), false},
@@ -148,22 +155,104 @@ func TestTableHoldNoPipeRows(t *testing.T) {
 	}
 }
 
-// TestTableHoldHeaderLine: a lone header line draws as a paragraph, then as
-// the one-line placeholder once the delimiter row arrives. A header that
-// wraps makes that frame shorter than the one before (logged; the hold is
-// Carl's design, 2026-11-11).
-func TestTableHoldHeaderLine(t *testing.T) {
-	for _, hdr := range []string{"| a | b |", "| " + strings.Repeat("long header words ", 4) + "| b |"} {
-		r := newTestRenderer(t, "notty", 50)
-		s := NewStream(r, "k", nil)
-		p, err := s.Frame("Intro.\n\n" + hdr + "\n")
+// framesNoShrink streams every byte prefix of doc through Frame and fails
+// if a frame has fewer lines than the one before; the end must not shrink
+// and Final must equal r.Render(Sanitize(doc)). It returns the frames.
+func framesNoShrink(t *testing.T, r *DirectiveRenderer, doc string) []string {
+	t.Helper()
+	s := NewStream(r, "k", nil)
+	var outs []string
+	prev := 0
+	for i := 1; i <= len(doc); i++ {
+		out, err := s.Frame(doc[:i])
 		if err != nil {
 			t.Fatal(err)
 		}
-		h, err := s.Frame("Intro.\n\n" + hdr + "\n|---|---|\n")
-		if err != nil || !s.stats.lastHeld {
-			t.Fatalf("not held: %v", err)
+		if n := lineCount(out); n < prev {
+			t.Fatalf("prefix %d shrank %d -> %d lines:\n%s\n->\n%s", i, prev, n, xansi.Strip(outs[len(outs)-1]), xansi.Strip(out))
 		}
-		t.Logf("header %d cells: paragraph frame %d lines, held frame %d lines", len(hdr), lineCount(p), lineCount(h))
+		prev = lineCount(out)
+		outs = append(outs, out)
+	}
+	fin, err := s.Final(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := r.Render(Sanitize(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fin != want {
+		t.Fatalf("Final != Render: %s", firstDiff(want, fin))
+	}
+	if n := lineCount(fin); n < prev {
+		t.Fatalf("the end shrank %d -> %d lines", prev, n)
+	}
+	return outs
+}
+
+// TestTableHoldHeaderLine: a tail line that starts with `|` is held from its
+// first byte (Carl 2026-11-11, option A), so a header never draws as a
+// paragraph and the frame never shrinks, also when the header wraps
+// (79 cells at w50 was 6 -> 5 lines before).
+func TestTableHoldHeaderLine(t *testing.T) {
+	for _, style := range []string{"dark", "notty"} {
+		for _, w := range []int{50, 78} {
+			for _, hdr := range []string{"| a | b |", "| " + strings.Repeat("long header words ", 4) + "| b |"} {
+				t.Run(fmt.Sprintf("%s/w%d/%d", style, w, len(hdr)), func(t *testing.T) {
+					r := newTestRenderer(t, style, w)
+					pre := "Intro.\n\n"
+					doc := pre + hdr + "\n|---|---|\n| 1 | 2 |\n"
+					outs := framesNoShrink(t, r, doc)
+					for i := len(pre) + 1; i <= len(doc); i++ {
+						if got := xansi.Strip(outs[i-1]); !strings.Contains(got, holdText) || strings.Contains(got, "header") {
+							t.Fatalf("prefix %d not held: %q", i, got)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+// TestTableHoldNotTable: a `|` line whose next line is not a delimiter row
+// is held, then draws as a paragraph; the frame only grows.
+func TestTableHoldNotTable(t *testing.T) {
+	for _, style := range []string{"dark", "notty"} {
+		for _, w := range []int{50, 78} {
+			r := newTestRenderer(t, style, w)
+			for _, doc := range []string{
+				"Intro.\n\n| not a table, " + strings.Repeat("some words ", 6) + "\nprose after it\n",
+				"Intro.\n\n| a | b |\n|  |\n",
+				"| a | b |\n\nNext.\n",
+			} {
+				outs := framesNoShrink(t, r, doc)
+				if got := xansi.Strip(outs[len(outs)-1]); strings.Contains(got, holdText) {
+					t.Errorf("%s/w%d: %q ends held: %q", style, w, doc, got)
+				}
+			}
+		}
+	}
+}
+
+// TestTableHoldScope: a `|` line inside a code fence or a list item is not
+// held (the hold reads only a tail block that starts with `|`); a table
+// is released at holdRows body rows.
+func TestTableHoldScope(t *testing.T) {
+	r := newTestRenderer(t, "dark", 60)
+	for _, doc := range []string{"```\n| a | b |\n", "- | a | b |\n", "- item\n\n  | a | b |\n"} {
+		s := NewStream(r, "k", nil)
+		out, err := s.Frame(doc)
+		if err != nil || s.stats.lastHeld || strings.Contains(xansi.Strip(out), holdText) {
+			t.Errorf("%q held: %v %q", doc, err, xansi.Strip(out))
+		}
+	}
+	hdr := "| a | b |\n|---|---|\n"
+	s := NewStream(r, "k", nil)
+	if _, err := s.Frame(hdr + strings.Repeat("| 1 | 2 |\n", holdRows-1)); err != nil || !s.stats.lastHeld {
+		t.Fatalf("%d rows not held: %v", holdRows-1, err)
+	}
+	if out, err := s.Frame(hdr + strings.Repeat("| 1 | 2 |\n", holdRows)); err != nil || s.stats.lastHeld || strings.Contains(xansi.Strip(out), holdText) {
+		t.Fatalf("%d rows held: %v", holdRows, err)
 	}
 }
