@@ -7,7 +7,7 @@ Source of the work: owner brief from dun-bf, 2026-11-10 (Carl approved).
 Layers in order, each usable alone. dun pins tags; tags/push need Carl's OK.
 
 Tags: v0.4.1 @ 8d454ad, v0.5.0 @ 2f3ad29 (pushed 2026-11-12; M1 full suite all pass at 2f3ad29, root 1174 s, vet clean).
-GitHub releases v0.4.1 and v0.5.0 not made (Claude Code classifier blocks `gh release create`; Carl runs it).
+GitHub releases made for v0.4.0, v0.4.1, v0.5.0 (v0.5.0 = Latest).
 
 ## Active work
 
