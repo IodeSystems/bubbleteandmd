@@ -106,6 +106,22 @@ func main() {
 }
 ```
 
+## A diff
+
+A `diff` fence tints added and removed lines; a changed pair marks the
+words that differ, and the title's extension gives the colours inside.
+
+```diff title="wordcount.go"
+@@ -27,7 +27,7 @@ func (w *wordCount) report() string {
+ 	fmt.Fprintf(&b, "words: %d\n", w.words)
+ 	for word, n := range w.top {
+-		if n > 3 {
++		if n > min {
+ 			fmt.Fprintf(&b, "  %-12s %d\n", word, n)
+ 		}
+ 	}
+```
+
 ## Wide blocks
 
 A table wider than the pane is not wrapped; each line is cut at the pane edge.

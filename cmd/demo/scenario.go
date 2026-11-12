@@ -35,7 +35,7 @@ func scenarioByName(name string) (scenario, error) {
 		return scenario{name: name, about: "showcase → half-written Markdown → terminal controls → long-100k",
 			src: strings.Join([]string{showcase, healText, unsafeText, long.Text}, "\n\n")}, nil
 	case "showcase":
-		return scenario{name: name, about: "every block kind and llx form, 191 lines", src: showcase}, nil
+		return scenario{name: name, about: "every block kind and llx form, 207 lines", src: showcase}, nil
 	case "heal":
 		return scenario{name: name, about: "half-written Markdown: press p mid-stream", src: healText}, nil
 	case "unsafe":
