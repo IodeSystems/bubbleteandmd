@@ -453,3 +453,37 @@
   closing fence (`` ` ``, ``` `` ```) no longer draws as a code line
   (heal's partial-closer rule, "heal, no shrink on the showcase"), so
   TestDiffStream allows no shrink.
+- 2026-11-12: Nesting caps (internal/nest), ported from flowdown v0.5.0
+  (0d7c300, engine/blocks.ts and engine/inlines.ts MAX_NESTING). A line
+  that would open a blockquote or list deeper than 16 blocks is text of
+  the block it is in; an emphasis, strikethrough, link or image inside 100
+  others is replaced by its text (its leaves). Link destination parens:
+  goldmark already reads at most 32 (flowdown's MAX_PARENS), no change.
+  How: the renderer no longer calls glamour.NewTermRenderer; it builds the
+  same goldmark (GFM, definition lists, auto heading IDs, glamour's ANSI
+  node renderer at priority 1000) on nest.New, whose list and blockquote
+  parsers refuse to open past the cap and whose AST transformer flattens
+  deep spans with its own stack. directive's parse and tablestream use
+  nest.New too, so all three read one tree. Under the caps the tree is
+  goldmark's (TestUnderCapsSameTree) and every glamour-equality test
+  holds. With glamour options given (NewRenderer opts) the renderer stays
+  glamour's own, uncapped: options cannot be applied to a rebuilt one.
+  Why 16 and not flowdown's 100: glamour cannot draw 100. Measured before
+  (dark, w80, Render, load ~90): `>`×40 111 ms, ×60 472 ms, ×70 2.1 s,
+  ×80 > 60 s, ×100 > 120 s (the time grows past exponential once the
+  indents pass the width; w40: ×30 46 ms, ×40 1.6 s); `- `×100 1.3 s,
+  ×1000 > 60 s; goldmark's parse alone is quadratic (`- `×100000: 32 s,
+  `>`×100000: 5.6 s; directive's parse hit it too). `*a _b `×40000 (360
+  KB) nested emphasis: fatal stack overflow in glamour's NewElement (Go
+  calls per level; the process dies, no recover). After: `>`×100 16 ms,
+  ×10000 640 ms, 100 KB 5.8 s; `- `×100 KB 162 ms; `1. `×100 KB 844 ms;
+  emphasis ×50000 1.0 s; links, images, parens 100 KB ≤ 0.7 s; all linear
+  in size. Plain prose 100 KB: 28 ms. Left: glamour's cost per byte grows
+  about with depth² (100 KB prose in 2/4/8/16 quotes: 200 ms/140 ms/
+  673 ms/4.3 s), so a 100 KB reply at the cap is still ~200× plain, and
+  a Stream re-renders its tail block each frame (plain 100 KB one
+  paragraph: 29 s for 1562 frames; `>`×10000 streamed: 54 s). A lower cap
+  (8) cuts the deep case ~6×; 16 was kept as past anything written to be
+  read. Tests: internal/nest (caps, text kept, same tree under the caps),
+  nest_test.go (each form at 100/1000/10000 levels and 100 KB, emphasis
+  ×50000, streamed ×1000; budget 120 s each).

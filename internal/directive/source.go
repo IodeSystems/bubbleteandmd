@@ -5,14 +5,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yuin/goldmark"
+	"github.com/iodesystems/bubbleteandmd/internal/nest"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/text"
 )
 
-// md reads as glamour v2.0.1 does (glamour.go:71-76): GFM and definition lists.
-var md = goldmark.New(goldmark.WithExtensions(extension.GFM, extension.DefinitionList))
+// md reads as the renderer does: glamour v2.0.1's goldmark (glamour.go:71-76:
+// GFM and definition lists) with the nesting caps (internal/nest).
+var md = nest.New()
 
 // doc is one parse of a Markdown text, with the byte ranges of its top-level
 // nodes. goldmark keeps no positions for container nodes, so a range is read

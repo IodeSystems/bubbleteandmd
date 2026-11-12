@@ -1,6 +1,7 @@
 package bubbleteandmd
 
 import (
+	"bytes"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,7 +11,11 @@ import (
 	"github.com/iodesystems/bubbleteandmd/internal/blocks"
 	"github.com/iodesystems/bubbleteandmd/internal/directive"
 	"github.com/iodesystems/bubbleteandmd/internal/join"
+	"github.com/iodesystems/bubbleteandmd/internal/nest"
 	"github.com/iodesystems/bubbleteandmd/internal/tablestream"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/renderer"
+	"github.com/yuin/goldmark/util"
 )
 
 // DirectiveRenderer renders Markdown as glamour does, and draws
@@ -19,7 +24,9 @@ import (
 // fences) and `$$` formulas. It satisfies Renderer, so NewStream can stream
 // it. A document with no form, no `$$` formula and no top-level table
 // wider than the width renders exactly as glamour renders it; such a table
-// is not wrapped: each row is one line, cut at the width (wide.go).
+// is not wrapped: each row is one line, cut at the width (wide.go). Past
+// the nesting caps (internal/nest: 16 blocks, 100 inline spans) it differs:
+// the deeper part renders as text. With glamour options given, no caps.
 //
 // A DirectiveRenderer is used by one goroutine at a time.
 type DirectiveRenderer struct {
@@ -41,7 +48,7 @@ type DirectiveRenderer struct {
 
 // target is one glamour renderer and the frame its directive pieces get.
 type target struct {
-	g    *glamour.TermRenderer
+	g    Renderer
 	p, s string // document prefix and suffix (join.Affixes)
 	// width: content width of a directive piece, frame excluded.
 	width int
@@ -65,7 +72,7 @@ func NewRenderer(style ansi.StyleConfig, width int, opts ...glamour.TermRenderer
 	plain := directive.PlainStyle(style)
 	r := &DirectiveRenderer{style: style, opts: opts, theme: directive.ThemeFrom(style, plain), width: width, inners: map[int]*target{}}
 	all := append([]glamour.TermRendererOption{glamour.WithStyles(style), glamour.WithWordWrap(width), glamour.WithChromaFormatter(chromaFormatter)}, opts...)
-	g, err := glamour.NewTermRenderer(all...)
+	g, err := r.term(style, width, all)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +331,7 @@ func (r *DirectiveRenderer) innerTarget(w int) (*target, error) {
 	st.Document.Margin, st.Document.Indent = &zero, &zero
 	all := append([]glamour.TermRendererOption{glamour.WithChromaFormatter(chromaFormatter)}, r.opts...)
 	all = append(all, glamour.WithStyles(st), glamour.WithWordWrap(w))
-	g, err := glamour.NewTermRenderer(all...)
+	g, err := r.term(st, w, all)
 	if err != nil {
 		return nil, err
 	}
@@ -334,6 +341,37 @@ func (r *DirectiveRenderer) innerTarget(w int) (*target, error) {
 	}
 	r.inners[w] = t
 	return t, nil
+}
+
+// term is the glamour renderer of style at word wrap w. With no glamour
+// options it is glamour's TermRenderer rebuilt on goldmark with the nesting
+// caps (term); else glamour's own, made with all, uncapped: options cannot
+// be applied to a rebuilt one.
+func (r *DirectiveRenderer) term(st ansi.StyleConfig, w int, all []glamour.TermRendererOption) (Renderer, error) {
+	if len(r.opts) > 0 {
+		return glamour.NewTermRenderer(all...)
+	}
+	return newTerm(ansi.Options{Styles: st, WordWrap: w, ChromaFormatter: chromaFormatter}), nil
+}
+
+// term renders as glamour.NewTermRenderer with options o does, on goldmark
+// built by nest.New: block and inline nesting capped (docs/decisions.md,
+// "Nesting caps").
+type term struct{ md goldmark.Markdown }
+
+// glamourPriority: the priority glamour gives its ANSI node renderer.
+const glamourPriority = 1000
+
+func newTerm(o ansi.Options) term {
+	md := nest.New()
+	md.SetRenderer(renderer.NewRenderer(renderer.WithNodeRenderers(util.Prioritized(ansi.NewRenderer(o), glamourPriority))))
+	return term{md}
+}
+
+func (t term) Render(in string) (string, error) {
+	var b bytes.Buffer
+	err := t.md.Convert([]byte(in), &b)
+	return b.String(), err
 }
 
 // padRe is a line's trailing pad cells: plain or styled spaces.
