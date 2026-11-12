@@ -287,7 +287,8 @@ func TestRendererPlain(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, d := range docs {
-				if hasForm(d.text) {
+				// a wide table is cut, not wrapped (single-line rows)
+				if hasForm(d.text) || hasWide(r, d.text) {
 					continue
 				}
 				checked++

@@ -7,30 +7,28 @@ import (
 	"github.com/iodesystems/bubbleteandmd/internal/directive"
 )
 
-// holdRows: while Frame streams, a GFM table in the tail with fewer body
-// rows than this (or a lone header line) is not drawn; a one-line
-// placeholder stands in. Column
-// widths settle in the first rows, so the table appears once, with the
-// widths it keeps (Carl 2026-11-11: no screen bounce).
-const holdRows = 8
+// Tables draw row by row as they stream (Carl 2026-11-11): each row is one
+// line (wide.go cuts a wide table at the width), so a change of column
+// widths moves cells sideways and never changes the height. Only the
+// header-only state is held: a lone header line drawn as a paragraph can
+// wrap to more lines than the table's header later takes.
 
 // holdText is the placeholder line.
 const holdText = "table…"
 
-var tableDelimLine = regexp.MustCompile(`^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$`)
-
 // delimStart: a partial line that can still become a delimiter row.
 var delimStart = regexp.MustCompile(`^[ \t|:-]*$`)
 
-// heldTable reports whether tail (healed text of the last block) is held:
-// a GFM table with a header row, a delimiter row and fewer than holdRows
-// body rows, or a first line that starts with `|` and can still become a
-// table header (Carl 2026-11-11, option A: a header never draws as a
-// paragraph). It is released when the second line cannot be a delimiter
-// row; the frame then grows from the one placeholder line to a paragraph.
-// Heal has hidden a partial last row, so every counted row is whole.
-// A body row is any line after the delimiter row up to the first blank
-// line, as the table parser reads it: `x | y` with no leading pipe counts.
+// heldTable reports whether tail (text of the last block before heal: heal
+// hides a partial body row with the "\n" before it, so a table with no
+// whole body row would read as a delimiter row still typing) is held:
+// a first line that starts with `|` and can still become a table header,
+// alone or with a second line, not yet ended by "\n", that can still become
+// the delimiter row (Carl 2026-11-11, option A: a header never draws as a
+// paragraph). Once the delimiter row has its "\n", the table draws. It is
+// released when the
+// second line cannot be a delimiter row; the frame then grows from the one
+// placeholder line to a paragraph.
 func heldTable(tail string) bool {
 	if !strings.HasPrefix(tail, "|") {
 		return false
@@ -40,18 +38,9 @@ func heldTable(tail string) bool {
 		// header row alone; a blank line after it ends the block
 		return !strings.HasSuffix(tail, "\n\n")
 	}
-	if !tableDelimLine.MatchString(lines[1]) {
-		// the delimiter row can still be typing
-		return len(lines) == 2 && !strings.HasSuffix(tail, "\n") && delimStart.MatchString(lines[1])
-	}
-	body := 0
-	for _, l := range lines[2:] {
-		if strings.TrimSpace(l) == "" {
-			break
-		}
-		body++
-	}
-	return body < holdRows
+	// the delimiter row can still be typing: until its "\n", a cell count
+	// below the header's reads as a paragraph
+	return len(lines) == 2 && !strings.HasSuffix(tail, "\n") && delimStart.MatchString(lines[1])
 }
 
 // placeheld is a Renderer that draws its own placeholder line.

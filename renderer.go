@@ -17,8 +17,9 @@ import (
 // llx-markdown's directive forms (callouts, steps, tabs, stats, pros and
 // cons, details, sources, quotes with a source, file trees, titled code
 // fences) and `$$` formulas. It satisfies Renderer, so NewStream can stream
-// it. A document with no form and no `$$` formula renders exactly as glamour
-// renders it.
+// it. A document with no form, no `$$` formula and no top-level table
+// wider than the width renders exactly as glamour renders it; such a table
+// is not wrapped: each row is one line, cut at the width (wide.go).
 //
 // A DirectiveRenderer is used by one goroutine at a time.
 type DirectiveRenderer struct {

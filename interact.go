@@ -15,8 +15,8 @@ import (
 //
 // The layout stays as streamed until an action changes it: Frame and Final
 // draw the zero State, and the end of the stream changes no form. One
-// exception: a table tail that Frame held as a placeholder (fewer than 8
-// body rows, tablehold.go) is drawn by Final. Focus
+// exception: a table header that Frame held as a placeholder (no whole
+// delimiter row yet, tablehold.go) is drawn by Final. Focus
 // alone changes no line count or width (a same-width cue only). After an
 // action that returns true, render again (Frame or Final with the same
 // source) to show it; Stops and Focused are those of the last render. A
