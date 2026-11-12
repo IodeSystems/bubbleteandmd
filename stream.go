@@ -492,7 +492,10 @@ func (s *Stream) plainFence(tail string) bool {
 	}
 	if line != s.plainOpen {
 		_, form := directive.Parse(line + "\n" + m[1] + "\n")
-		s.plainOpen, s.plain = line, !form
+		// A diff fence draws line by line (diff.go), not through glamour:
+		// its whole render is the cheap one.
+		_, diff := diffFence(line + "\n")
+		s.plainOpen, s.plain = line, !form && !diff
 	}
 	return s.plain
 }

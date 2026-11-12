@@ -35,6 +35,8 @@ type DirectiveRenderer struct {
 	pane  int
 	wides map[int]*target
 	nat   *tablestream.Natural
+	// diff: escape table and memos of diff fences (diff.go).
+	diff diffState
 }
 
 // target is one glamour renderer and the frame its directive pieces get.
@@ -44,6 +46,10 @@ type target struct {
 	// width: content width of a directive piece, frame excluded.
 	width int
 	frame directive.Style
+	// dcal: how a code line is drawn here, not first and first; dfall:
+	// a titled diff's lines when dcal could not be read (diff.go).
+	dcal  [2]*diffCal
+	dfall *diffCal
 }
 
 // NewRenderer returns a renderer for style at word wrap width. opts go to
@@ -140,6 +146,9 @@ type parsed struct {
 	form   bool
 	wide   int
 	shifts []directive.MathShift
+	// diff: an untitled diff fence (diff.go); body is its code.
+	diff bool
+	body string
 }
 
 // piece is a rendered piece and the marks in it, lines counted from its
@@ -161,10 +170,13 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 		src, math, shifts := directive.MathFences(b.Source)
 		d, ok := directive.Parse(src)
 		ps[i] = parsed{src: src, d: d, form: ok, shifts: shifts}
-		if !ok && !math && t == &r.outer {
+		if !ok && !math {
+			ps[i].body, ps[i].diff = diffFence(src)
+		}
+		if !ok && !math && !ps[i].diff && t == &r.outer {
 			ps[i].wide = r.wideWidth(src)
 		}
-		if ok || math || ps[i].wide > 0 {
+		if ok || math || ps[i].wide > 0 || ps[i].diff {
 			plain = false
 		}
 	}
@@ -175,7 +187,9 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 	var pieces []piece
 	for i, p := range ps {
 		var err error
-		if p.wide > 0 {
+		if p.diff {
+			pieces, err = r.diffPiece(t, pieces, p.src, p.body, first && i == 0)
+		} else if p.wide > 0 {
 			var text string
 			if text, err = r.widePiece(p.src, first && i == 0, p.wide); err == nil && text != "" {
 				pieces = append(pieces, piece{text: text})
@@ -250,7 +264,7 @@ func (r *DirectiveRenderer) form(d directive.Directive, w int, sc scope, rel int
 	c := directive.Ctx{Width: w, Theme: r.theme, Inner: func(md string, w int) (string, error) {
 		out, _, err := r.inner(md, w, scope{})
 		return out, err
-	}}
+	}, Diff: r.diffTitled}
 	if !sc.on {
 		lines, _, err := directive.Render(d, c)
 		return lines, nil, err
@@ -283,23 +297,9 @@ func (r *DirectiveRenderer) glamourPiece(t *target, pieces []piece, src string, 
 // inner renders a form body at content width w: margin 0, no pad cells.
 // Forms in it draw too (Carl B2: forms nest inside form bodies).
 func (r *DirectiveRenderer) inner(md string, w int, sc scope) (string, []directive.Mark, error) {
-	w = max(w, 1)
-	t, ok := r.inners[w]
-	if !ok {
-		st := r.style
-		zero := uint(0)
-		st.Document.Margin, st.Document.Indent = &zero, &zero
-		all := append([]glamour.TermRendererOption{glamour.WithChromaFormatter(chromaFormatter)}, r.opts...)
-		all = append(all, glamour.WithStyles(st), glamour.WithWordWrap(w))
-		g, err := glamour.NewTermRenderer(all...)
-		if err != nil {
-			return "", nil, err
-		}
-		t = &target{g: g, width: w}
-		if err := t.affixes(); err != nil {
-			return "", nil, err
-		}
-		r.inners[w] = t
+	t, err := r.innerTarget(w)
+	if err != nil {
+		return "", nil, err
 	}
 	out, marks, err := r.render(t, md, sc)
 	if err != nil {
@@ -310,6 +310,30 @@ func (r *DirectiveRenderer) inner(md string, w int, sc scope) (string, []directi
 		lines[i] = padRe.ReplaceAllString(l, "")
 	}
 	return strings.Join(lines, "\n"), marks, nil
+}
+
+// innerTarget is the glamour renderer of form bodies at content width w:
+// margin 0.
+func (r *DirectiveRenderer) innerTarget(w int) (*target, error) {
+	w = max(w, 1)
+	if t, ok := r.inners[w]; ok {
+		return t, nil
+	}
+	st := r.style
+	zero := uint(0)
+	st.Document.Margin, st.Document.Indent = &zero, &zero
+	all := append([]glamour.TermRendererOption{glamour.WithChromaFormatter(chromaFormatter)}, r.opts...)
+	all = append(all, glamour.WithStyles(st), glamour.WithWordWrap(w))
+	g, err := glamour.NewTermRenderer(all...)
+	if err != nil {
+		return nil, err
+	}
+	t := &target{g: g, width: w}
+	if err := t.affixes(); err != nil {
+		return nil, err
+	}
+	r.inners[w] = t
+	return t, nil
 }
 
 // padRe is a line's trailing pad cells: plain or styled spaces.

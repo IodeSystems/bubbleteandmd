@@ -32,6 +32,31 @@ func StyleOf(s ansi.StyleConfig, plain bool) Style {
 	return st
 }
 
+// cellWidth is xansi.StringWidth(l), counted fast for a line of printable
+// ASCII and SGR sequences (a long titled diff frames thousands per render).
+func cellWidth(l string) int {
+	n := 0
+	for i := 0; i < len(l); i++ {
+		c := l[i]
+		switch {
+		case c == 0x1b && i+1 < len(l) && l[i+1] == '[':
+			j := i + 2
+			for j < len(l) && (l[j] >= '0' && l[j] <= '9' || l[j] == ';') {
+				j++
+			}
+			if j >= len(l) || l[j] != 'm' {
+				return xansi.StringWidth(l)
+			}
+			i = j
+		case c >= 0x20 && c < 0x7f:
+			n++
+		default:
+			return xansi.StringWidth(l)
+		}
+	}
+	return n
+}
+
 // Frame wraps content lines (each at most width cells, no margin, no pad) in
 // the frame glamour gives a paragraph piece: margin, line, pad cells up to
 // width, newline. width is the content width (line width minus margin). A
@@ -47,7 +72,7 @@ func Frame(lines []string, width int, s Style, first bool) string {
 	for _, l := range lines {
 		b.WriteString(s.Margin)
 		b.WriteString(l)
-		if w := xansi.StringWidth(l); w < width {
+		if w := cellWidth(l); w < width {
 			b.WriteString(strings.Repeat(s.Cell, width-w))
 		}
 		b.WriteString("\n")

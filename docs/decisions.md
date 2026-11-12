@@ -403,3 +403,53 @@
   tableDocs, dark/notty, w40/79: no shrink at a table tail), TestHeldTable,
   TestTableHoldHeaderLine, TestTableHoldNotTable, TestTableHoldScope.
   TestRendererPlain skips documents with a wide table.
+- 2026-11-11 (diff fences, Carl level 2): a top-level ```` ```diff ````
+  (or `patch`) fence at indent 0, untitled or `title="file.ext"` (llx
+  syntax unchanged), draws line by line (diff.go, internal/diffview), not
+  through glamour. One line per source line, never wrapped. Kinds port
+  highlight.js's diff grammar (llx code.css): `+`/`!` added, `-` removed,
+  `@@` hunk, `---`/`+++`/`*** `/`diff --git`/`Index`/`===` header, plus
+  git's `index ` and `\ No newline`. Added/removed: background tint over
+  the code area to the block's right edge (marker included, margin and
+  indent not); hunk/file headers Theme.Muted (faint); context untinted.
+  Default tints (256 colours, Theme.Diff; user-facing, Carl may change):
+  dark added 22 / word 28, removed 52 / word 88; light added 194 / word
+  157, removed 224 / word 217; notty none (no SGR; the marker is the only
+  cue). Inner colours: the title's extension (else its base name) picks a
+  chroma lexer (lexers.Match once per extension, process cache; plaintext
+  counts as none); each line's code (marker cut, tabs expanded to 4-column
+  stops) is lexed alone and its token colours come from the renderer's own
+  style (CodeBlock.Chroma, else CodeBlock.Theme), not glamour's
+  once-per-process "charm" theme. No title or unknown: one Text colour.
+  Word diff: a removed run followed directly by an added run pairs
+  index-wise; per pair, an LCS over tokens (words, space runs, single
+  other characters) marks what the other line lacks with the stronger
+  tint. Caps: a line > 500 runes or a run > 50 lines gets no word marks; a
+  pair that shares no non-space token gets none (whole line changed).
+  Width: no WideBlocks: a line wider than the code area is cut there with
+  "…" (as titled code, R7; glamour wraps other code, unchanged);
+  WideBlocks (top level): kept to the pane, then cut with `… +N cols →`
+  (cutLine), no pad past the code area. Frame: glamour's code block piece
+  read once per target from a render of a one-line `text` fence (head
+  lines, lead = margin + indent cells, pad cell, code area). A body with
+  no line renders through glamour. Titled: the titled-code form calls
+  Ctx.Diff (no head/tail; context lines leave the pad to the form frame).
+  In form bodies the tinted pad ends in `ESC[0m` so inner's pad strip
+  keeps it. Streaming: Stream.plainFence says no to a diff fence, so the
+  tail renders whole each frame, not in codestream chunks; drawn lines
+  are memoized per renderer by (target, lexer, pane, line, paired line),
+  so a frame costs a map lookup per unchanged line plus the changed line
+  and its pair. Frame is the exact render of the healed text; versus the
+  Final only colours change (pair arrives, `-`→`---` header, `@`→`@@`),
+  never cells (TestDiffStream: every token prefix, 3 styles, w40/78, pane
+  off/on). Bench (dev box, load ~90): one warm Frame of a 2000-line tail:
+  untitled 6.8 ms, titled (Go) 12.6 ms, plain ```` ```go ```` fence
+  (codestream) 16.5 ms; 4.5k frames + Final: 17.6 s / 24.8 s / 59.3 s
+  (bench/diff_bench_test.go). directive.Frame counts the width of
+  ASCII+SGR lines without x/ansi (cellWidth, same result; a titled diff
+  frames every line each render). Not covered: fences in lists and quotes
+  (glamour + chroma's diff lexer, as before), indented openers, tokens
+  over lines (a line inside a block comment lexes as code). Known, not
+  diff's: heal draws a partial closing fence (`` ` ``, ``` `` ```) as one
+  more code line, so the frame loses that line when the closer completes,
+  as for every fence (TestDiffStream allows only that).

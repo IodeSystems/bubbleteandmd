@@ -26,6 +26,11 @@ type Ctx struct {
 	State *State
 	// Key is this form's FormID.Key.
 	Key string
+	// Diff draws the code lines of a ```diff fence (body: the code, title:
+	// the file it names) at content width: one line per source line, each
+	// at most width cells. Nil: a titled diff renders through Inner like
+	// other code.
+	Diff func(body, title string, width int) ([]string, error)
 }
 
 // body renders a form body through Body, or Inner when Body is nil.

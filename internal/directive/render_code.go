@@ -116,6 +116,13 @@ func renderCodeTitle(d Directive, c Ctx) ([]string, error) {
 		title = xansi.Truncate(title, c.Width, "…")
 	}
 	body := ct.Body
+	if IsDiffLang(ct.Lang) && c.Diff != nil {
+		lines, err := c.Diff(body, ct.Title, c.Width)
+		if err != nil {
+			return nil, err
+		}
+		return append([]string{title}, lines...), nil
+	}
 	if !strings.HasSuffix(body, "\n") {
 		body += "\n"
 	}
@@ -138,6 +145,12 @@ func renderCodeTitle(d Directive, c Ctx) ([]string, error) {
 		}
 	}
 	return append([]string{title}, lines...), nil
+}
+
+// IsDiffLang reports whether a fence's language is a diff: `diff` or
+// `patch` (highlight.js's alias, as llx-markdown reads it), any case.
+func IsDiffLang(lang string) bool {
+	return strings.EqualFold(lang, "diff") || strings.EqualFold(lang, "patch")
 }
 
 // codeTitleFence is a backtick fence longer than any backtick run at a line start of body.
