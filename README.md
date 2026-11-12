@@ -52,6 +52,14 @@ out, err = s.Final(reply)  // once, when the reply ends
   reply that ends in one is not the reply.
 - Pass the Renderer raw. Process the source before Frame and the output
   after; a wrapper that trims glamour's newlines gives `ErrTrimmed`.
+- Tables (NewRenderer): each row of a top-level table is one line. A
+  table wider than `width` renders at its own width, cut at `width` with
+  `… +N cols →`. While a table streams, each whole row draws as it
+  arrives; column widths can change from frame to frame, the height only
+  grows. A lone header line shows `table…` until its delimiter row ends.
+  Not single-line: tables in lists, quotes and form bodies, tables with an
+  email address or emoji shortcode, NewRenderer given glamour options, a
+  raw glamour Renderer (glamour wraps cells).
 - `r.WideBlocks(pane)` (before the first Render): a top-level code block
   or table wider than `width` is not wrapped; it renders at its own width
   and each line is cut at `pane` with `… +N cols →`. Prose still wraps at

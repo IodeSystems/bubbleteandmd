@@ -69,7 +69,7 @@ scrolled up); unconstrained (height 0) → render all, scroll keys return false,
   **risks (L6)**: h below the first frame's height (h 1-2) or a tall first frame opens at the top and does not follow; CursorRow
   reads ancestry from TreeRow.Path (`plain#i`): a made-up Cursor path under a drawn folder now shows on that folder (was: row 0).
   `go test -short -timeout 60m ./...` with L6: all ok (exit 0), root 524 s, vet clean.
-- ✅ L6b lone table header held from its first `|` (Carl option A; decisions.md "table hold, lone header"): no paragraph → `table…`
+- ✅ L6b lone table header held from its first `|` (Carl option A; decisions.md "table hold, lone header"; now header-only, see "Table rows single line"): no paragraph → `table…`
   shrink; not a table → placeholder grows to a paragraph. Spike mirror updated (also its stale body-row count).
   **risks**: prose that starts with `|` shows `table…` until its 2nd line; `| a |\n---` (setext-like) held as a 0-row table (as before).
 - ◻ L7 docs
@@ -153,6 +153,16 @@ arm64 (M1) TestWideInvariant failure at v0.4.0 root-caused: chroma v2.27.0 250 m
   raw *glamour.TermRenderer hosts get glamour's partial output with the error. join tests render no code: no TestMain there.
 - **next**: tag v0.4.1/v0.5.0 (Carl); dun-bf: call DisableLexTimeout at dun start (dun's call).
 - `go test -short -timeout 60m ./...` at 6593921: all ok (exit 0), root 1040 s, vet clean.
+
+### ◐ Table rows single line (Carl 2026-11-11; decisions.md "table rows, single line")
+Replaces the 8-row hold (L6b's header hold kept for the header-only state only).
+- ✅ wide.go: a top-level table wider than the width is a wide block with or without WideBlocks (cut at the width when off);
+  tablehold.go: held only until the delimiter row's "\n", read on the text before heal. Tests in tablehold_test.go.
+- **next**: Carl review; dun note (dun-bf session's).
+- **risks**: rows with `@`/emoji shortcode, tables in lists/quotes/form bodies, glamour opts, raw glamour Renderer still wrap
+  (height can change while streaming; raw glamour lost its 8-row hold); a table past 512 cells shrinks columns (wraps);
+  a delimiter row typed with an extra cell flips table → paragraph.
+- **blocking decisions**: none. Assumed: same `… +N cols →` note as WideBlocks; raw glamour Renderer gets no hold.
 
 ### ✅ Demo (Carl approved 2026-11-11)
 `cmd/demo` (`make demo` → ./bin/demo): split screen, Doc vs naive whole-reply glamour, same token schedule (corpus mulberry32,

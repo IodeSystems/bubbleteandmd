@@ -120,7 +120,8 @@
   rest are byte-equal to stock. Stream/Renderer invariants with NewRenderer
   compare without `untie`; `untie` stays where raw glamour (stock
   terminal256) is the reference.
-- 2026-11-11 (table hold, Carl): while Frame streams, a GFM table that is the
+- 2026-11-11 (table hold, Carl; superseded by "table rows, single line"
+  below): while Frame streams, a GFM table that is the
   last block and has fewer than 8 body rows (`holdRows`, counted on the
   healed tail, so a partial row is not counted; a body row is every line
   after the delimiter row up to a blank line, as the table parser reads
@@ -260,7 +261,8 @@
     the one-line `table…` when the delimiter row arrived; a header that
     wraps (79 cells at w50: 6 → 5 lines) made that frame shrink. Fixed:
     see "table hold, lone header" below.
-- 2026-11-11 (table hold, lone header, Carl option A): the hold starts at
+- 2026-11-11 (table hold, lone header, Carl option A; narrowed by "table
+  rows, single line" below to the header-only state): the hold starts at
   the first byte of a last tail block that starts with `|`: a first line
   alone is held (unless a blank line follows it), and a partial second
   line of only ` \t|:-` is held (the delimiter row can still be typing).
@@ -318,3 +320,43 @@
   panic values), TestRenderLexerPanic (registered panicking lexers, top
   level and in a callout body; Render, Frame, Final give "" and the error;
   fails with a crash without the recover, checked).
+- 2026-11-11 (table rows, single line, Carl): "I like the glamour table
+  rendering, keep it single line, render each row, but re-adjust as they
+  come, as long as we don't jank bounce up and down, it's fine." Replaces
+  the 8-row hold. (1) Renderer: a top-level table wider than the width
+  renders as a wide block with or without WideBlocks (natural width +
+  margins, cap 512), each line cut at the pane, or at the width when
+  WideBlocks is off, with `… +N cols →`. So every body row is one line in
+  Render, Frame and Final, and a change of column widths moves cells
+  sideways only. Final stays r.Render(Sanitize(src)); a table that fits
+  keeps glamour's bytes. (2) Frame: the table draws from its delimiter
+  row's "\n" on, one line per whole body row (heal hides a partial row).
+  (3) Header-only state, the smallest no-shrink rule: option A's hold
+  stays for it alone. The tail is held (one muted `table…` line) while its
+  raw text is one `|` line (no blank line after it) or that line and a
+  second line of ` \t|:-` with no "\n" yet. Read on the text before heal:
+  heal hides a partial body row with the "\n" before it, so the healed
+  tail of `hdr\n|---|\n| 1` reads as a delimiter row still typing, and a
+  frame drew the table, then `table…`, then the table (found by
+  TestTableHoldHeaderLine). Why hold until the "\n": a delimiter row with
+  fewer cells than the header is a paragraph, which can wrap to more
+  lines than the table header. Placeholder → table (≥ 2 lines) or →
+  paragraph (≥ 1 line) only grows. (4) T5 fast path: unchanged; a wide
+  table's Table is keyed by its wrap width, so a natural-width change is
+  a whole render. Not single-line (as before): tables in lists, quotes,
+  form bodies; rows the width model does not read (`@`, emoji
+  shortcode); NewRenderer given glamour options; a raw glamour Renderer
+  (no hold for its rows either now; glamour wraps, so its height can
+  change). table-20k is wider than w78 and w98 (Note column), so it now
+  streams through the wide renderer, cut; 880 of 892 frames still splice
+  from cached rows. Measured (BENCH_LLX table-20k frame, directive column,
+  dev box load 45-91, two runs each, base 2bd5149 → this change): w78
+  1634, 2465 → 3518, 3304 ms; w98 3567, 3098 → 3703, 4716 ms. Noisy; w78
+  looks 1.3-2× slower (cut lines + natural width per frame). Tests: TestTableRows
+  (table-20k frame prefixes, dark/notty, w40/78/98, WideBlocks 120:
+  held only to the delimiter "\n", body lines == whole rows, no shrink,
+  ≥ 80% frames spliced), TestTableRowsSingleLine, TestTableNoShrinkTokens
+  (token prefixes of table-20k, answer-20k, cmd/demo/showcase.md and the
+  tableDocs, dark/notty, w40/79: no shrink at a table tail), TestHeldTable,
+  TestTableHoldHeaderLine, TestTableHoldNotTable, TestTableHoldScope.
+  TestRendererPlain skips documents with a wide table.
