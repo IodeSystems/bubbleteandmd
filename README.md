@@ -93,6 +93,25 @@ Trade-off: the setting is for the whole process. It also removes the
 guard against runaway matches of chroma and of every other user of
 regexp2 in the process. The library never calls it.
 
+## Demo
+
+```sh
+make demo   # builds ./bin/demo
+./bin/demo
+```
+
+One reply streams at token speed into two panes: on the left a `Doc`
+(`NewRenderer` + `WideBlocks` + `SetHeight`), on the right glamour
+rendering the whole reply on every token (no heal, no cache). Status bars:
+render ms (last, avg, max), frames, dropped (stream steps a pane did not
+draw), lag in tokens, and how often the output height shrank.
+
+Keys: q quit · space pause · r restart · +/- rate · tab/shift+tab forms ·
+enter toggle · ←/→ tabs · ↑/↓ pgup/pgdown scroll (left pane).
+Flags: `--style dark|light|notty`, `--width N` (per pane; default half the
+terminal), `--rate N` (tokens/s, default 60), `--file path.md`,
+`--wide=false`, `--seed N`.
+
 ## Rules
 
 - Terminal controls in the source never reach the terminal: Stream calls
