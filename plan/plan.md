@@ -6,8 +6,8 @@ state + active work; done.md = archive; icebox.md = deferred).
 Source of the work: owner brief from dun-bf, 2026-11-10 (Carl approved).
 Layers in order, each usable alone. dun pins tags; tags/push need Carl's OK.
 
-Tags: v0.4.1 @ 8d454ad, v0.5.0 @ 2f3ad29 (pushed 2026-11-12; M1 full suite all pass at 2f3ad29, root 1174 s, vet clean).
-GitHub releases made for v0.4.0, v0.4.1, v0.5.0 (v0.5.0 = Latest).
+Tags: v0.4.1 @ 8d454ad, v0.5.0 @ 2f3ad29, v0.5.1 @ dc9c682 (pushed 2026-11-12; dc9c682: M1 full suite all pass, root 1189 s;
+dev box -short all pass, root 541 s; vet clean both). GitHub releases v0.4.0..v0.5.1 made (v0.5.1 = Latest). dun note: pin v0.5.1.
 
 ## Active work
 
