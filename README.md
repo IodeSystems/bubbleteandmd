@@ -102,15 +102,34 @@ make demo   # builds ./bin/demo
 
 One reply streams at token speed into two panes: on the left a `Doc`
 (`NewRenderer` + `WideBlocks` + `SetHeight`), on the right glamour
-rendering the whole reply on every token (no heal, no cache). Status bars:
-render ms (last, avg, max), frames, dropped (stream steps a pane did not
-draw), lag in tokens, and how often the output height shrank.
+rendering the whole reply on every token (no heal, no cache, no
+Sanitize). The default scenario, `all`, streams the showcase, a
+half-written-Markdown part, a part with terminal controls, then the
+corpus `long-100k` reply, at 150 tokens/s.
 
-Keys: q quit · space pause · r restart · +/- rate · tab/shift+tab forms ·
-enter toggle · ←/→ tabs · ↑/↓ pgup/pgdown scroll (left pane).
-Flags: `--style dark|light|notty`, `--width N` (per pane; default half the
-terminal), `--rate N` (tokens/s, default 60), `--file path.md`,
-`--wide=false`, `--seed N`.
+Per pane: frame ms (last, avg, max), frames per second, total render ms,
+share of one core busy rendering (last second), dropped stream steps,
+lag (tokens and seconds; longest token-to-screen time), height shrinks
+(the title flashes `▼ shrank` on each), time to the final output, and a
+bar chart of the longest frame per part of the reply, on one scale for
+both panes: flat on the left, rising with the reply on the right. The
+naive pane shows control bytes as `␛`, `␇`, `⟨U+202E⟩` (they are not sent
+to the terminal); the left pane counts the bytes Sanitize removed. A
+summary screen opens when both panes have the final output.
+
+Scenarios (`--scenario`, or `c` to go to the next): `all`, `showcase`,
+`heal`, `unsafe`, `long` (long-100k), `code` (code-50k), `forms`
+(forms-20k), `thread` (thread-30: 30 finished replies on the page; the
+naive pane renders the page per token).
+
+Keys: q quit · space pause · p freeze (both panes stop on the same
+token; the header shows the end of the source) · n one token while
+stopped · s summary · c next scenario · r restart · +/- rate. Left pane
+only (glamour shows llx forms as quoted text): tab/shift+tab forms ·
+enter toggle · ←/→ tabs · ↑/↓ pgup/pgdown scroll.
+Flags: `--scenario NAME`, `--style dark|light|notty`, `--width N` (per
+pane; default half the terminal), `--rate N` (tokens/s, default 150),
+`--file path.md`, `--wide=false`, `--seed N`.
 
 ## Rules
 

@@ -154,14 +154,21 @@ arm64 (M1) TestWideInvariant failure at v0.4.0 root-caused: chroma v2.27.0 250 m
 - **next**: tag v0.4.1/v0.5.0 (Carl); dun-bf: call DisableLexTimeout at dun start (dun's call).
 - `go test -short -timeout 60m ./...` at 6593921: all ok (exit 0), root 1040 s, vet clean.
 
-### ✅ Demo (Carl approved 2026-11-11)
+### ✅ Demo (Carl approved 2026-11-11; show-the-difference pass 2026-11-11)
 `cmd/demo` (`make demo` → ./bin/demo): split screen, Doc vs naive whole-reply glamour, same token schedule (corpus mulberry32,
 seed 42, rune-sized tokens), renders off the UI goroutine (one in flight per pane; Doc keys and rebuilds wait for it).
-Test: headless model (TestModelHeadless: ticks, keys, mid-stream resize; left view == fresh Doc Final view). tmux smoke ok.
-- **risks**: the Doc's own height shrinks 1 line 7× on showcase.md (w79 dark, seed 42): partial closing fence (`` `` ``)
-  drawn as a code line (list item, tree, DETAILS body), `> ` before `[!` drawn as a blank line, `*Day ` in a STEPS item
-  drawn on its own line until `1` arrives. Library, not demo; open to Carl.
-- **optional extensions**: sparkline of render ms; a key to switch which pane takes the keys.
+Scenarios all (default: showcase → heal → unsafe → long-100k) / showcase / heal / unsafe / long / code / forms / thread; 150 tok/s.
+Per pane: fps, busy share of a core, total ms, chart of longest frame by reply position (shared scale), lag + longest token-to-screen,
+shrink flash in the title, time to final; p freeze, n one token, s summary (auto at the end), c next scenario.
+Naive pane gets `visible(src)` (controls as pictures, not timed); left counts Sanitize's removed bytes (not timed).
+Tests: TestModelHeadless (+summary), TestScenarios, TestScenarioSwitch (thread history), TestFreeze, TestUnsafe (no control on screen),
+TestShrinkFlash, TestVisible, TestSpark. tmux smoke 200x50 long @300 tok/s 20 s: see the commit / report.
+- **risks**: the Doc's own height shrinks 1 line 7× on showcase.md (w79 dark, seed 42), library, open to Carl. Doc holds a growing
+  tail table as `table…` while glamour already draws rows (long-100k, heal) — reads as "ours is behind"; library (table hold).
+  Naive lag stays ~1 frame (it renders the newest prefix each time): the O(n) shows as fps / busy / dropped, not as token lag.
+  Render ms is wall time on the render goroutine, not thread CPU time. `visible` widens each control to one cell, so the naive
+  pane's wrap differs from what glamour does with the raw bytes.
+- **optional extensions**: a key to switch which pane takes the keys; thread CPU time (getrusage per thread) in place of wall time.
 - Assumed: "dropped" = ticks with new tokens a pane never drew; space pauses (toggle is enter only in the demo's KeyMap).
 
 ## Decisions / assumptions
