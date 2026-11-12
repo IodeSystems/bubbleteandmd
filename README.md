@@ -73,8 +73,25 @@ out, err = s.Final(reply)  // once, when the reply ends
   grows, a view scrolled up stays put. The view opens at the top when the
   first output it shows is taller than h, else at the bottom. Height 0 (default): all lines, the
   scroll keys return false. Stop lines count in the whole output.
-- On an error, show the raw text (after `Sanitize`).
+- On an error, show the raw text (after `Sanitize`). A panic in chroma
+  while it highlights a code block is an error too (Render and Stream
+  return "" and the error).
 - Call `Sanitize` on model text you render outside Stream.
+
+### Lex timeout (opt-in)
+
+chroma gives each lexer rule a 250 ms match timeout on a wall clock. On a
+loaded machine a match can time out on valid code, and one character then
+draws in the Error style (a red background). To stop this, call once at
+program start, before any rendering:
+
+```go
+bubbleteandmd.DisableLexTimeout()
+```
+
+Trade-off: the setting is for the whole process. It also removes the
+guard against runaway matches of chroma and of every other user of
+regexp2 in the process. The library never calls it.
 
 ## Rules
 

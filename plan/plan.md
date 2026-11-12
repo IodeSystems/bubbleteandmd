@@ -88,7 +88,7 @@ scrolled up); unconstrained (height 0) → render all, scroll keys return false,
 - notty focus: same-width glyph swap (233d92d; Carl): ▸→▶, ▾→▼, ‹›→«», tree guide ──→━━; no cue on depth-0 rows without fold mark and stacked tab labels (decisions.md).
 - ✅ list-item fence no-shrink (c98856f): heal closes a fence at the opener's indent. Gap: opener indented ≥4 (nested list) gets no heal closer.
 - M1 full suite: c98856f all pass (root 1132 s). 82af877 (L4) not yet run on M1.
-- **release**: v0.4.0 tag + push main waits on Carl (auto-mode blocks agent push); suggested at c98856f.
+- **release**: v0.4.0 tagged and released at 22558b0.
 - **risks (L3)**: TestLineMapSpike fails at d334510 too (mirror text != Stream on dir-code.md, doc-reply: 3 of 1266 frames; marks all ok) — stale mirror, not L3. (`$$` before a form: fixed in L4.) Mark Lines of a form in a side-by-side verdict column are rows, not columns. Tree file rows get no glyph pad (folder names shift 2 cells on first interaction).
 
 ### ◐ Fixes (review + audit 2026-11-10)
@@ -143,6 +143,16 @@ dun's splitWide ported as `DirectiveRenderer.WideBlocks(pane)` (wide.go; tablest
   an email or emoji shortcode are not wide (width model refuses them); lines past 512 cells wrap.
 - **blocking decisions**: none. Assumed: note style Theme.Muted; pane < width read as width.
 - **optional extensions**: sideways offset (dun's ←/→) as layer-3 state; wide blocks in lists/quotes/form bodies.
+
+### ✅ chroma lex timeout (Carl option A, 2026-11-11; decisions.md "lex timeout opt-in", "chroma panic → error")
+arm64 (M1) TestWideInvariant failure at v0.4.0 root-caused: chroma v2.27.0 250 ms wall-clock regexp2 timeout → Error token under load.
+- ✅ `DisableLexTimeout()` (lextimeout.go → internal/lextimeout), opt-in, never called by the library; README "Lex timeout".
+  TestMain calls it in root, bench, internal/{spike,codestream,directive,tablestream}.
+- ✅ cachedFormatter.Format recovers a panic → error; Render/Stream return "" and the error (TestCachedFormatterPanic, TestRenderLexerPanic).
+- **risks**: a host that does not opt in still gets Error tokens under load; regexp2 setting written without a lock (call before rendering);
+  raw *glamour.TermRenderer hosts get glamour's partial output with the error. join tests render no code: no TestMain there.
+- **next**: tag v0.4.1/v0.5.0 (Carl); dun-bf: call DisableLexTimeout at dun start (dun's call).
+- `go test -short -timeout 60m ./...` at 6593921: all ok (exit 0), root 1040 s, vet clean.
 
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.

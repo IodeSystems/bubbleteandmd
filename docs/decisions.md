@@ -288,3 +288,33 @@
   TestMain (lextimeout_test.go; TestLexUnderLoad guards it). The library
   does not: that would also remove chroma's runaway-match guard in the
   caller's process (open for Carl). Upstream draft: chroma issue section 10.
+- 2026-11-11 (lex timeout opt-in, Carl option A): the root exports
+  `DisableLexTimeout()` (lextimeout.go → internal/lextimeout.Disable:
+  regexp2.SetTimeoutCheckPeriod(100 years)). The host calls it once at
+  start, before rendering; library code never calls it. Why opt-in:
+  process-wide (regexp2 has no per-call setting), it also removes the
+  runaway-match guard of every other regexp2 user in the process, and the
+  setting is written without a lock. Why internal/lextimeout: test
+  binaries of internal packages that are imported by the root cannot
+  import it (cycle). TestMain calls it in the root, bench, internal/spike
+  (root function) and internal/codestream, internal/directive,
+  internal/tablestream (internal function): every test package whose
+  tests render or lex code blocks. internal/join links chroma but its
+  tests render no code block; blocks, corpus, heal, lru do not link
+  chroma. The arm64 (M1) TestWideInvariant failure at v0.4.0 is this
+  timeout.
+- 2026-11-11 (chroma panic → error): cachedFormatter.Format recovers a
+  panic (in the token iterator, that is the lexer, or the formatter) and
+  returns it as an error (`bubbleteandmd: chroma panic: …`, an error value
+  wrapped), as chroma's stock formatters do (FormatterFunc,
+  RecoveringFormatter). Why: chroma v3 panics on a match timeout; our
+  formatter had no recover, so a panic would crash the host. Path:
+  glamour's code block returns `glamour: error highlighting code: …`,
+  goldmark stops the walk, TermRenderer.Render returns its partial buffer
+  with the error, DirectiveRenderer.Render drops it and returns "", err,
+  Stream returns "", err (Frame and Final). A host that renders through a
+  raw *glamour.TermRenderer gets the partial text with the error (glamour,
+  not changed here). Tests: TestCachedFormatterPanic (error and non-error
+  panic values), TestRenderLexerPanic (registered panicking lexers, top
+  level and in a callout body; Render, Frame, Final give "" and the error;
+  fails with a crash without the recover, checked).
