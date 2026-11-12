@@ -6,6 +6,9 @@ state + active work; done.md = archive; icebox.md = deferred).
 Source of the work: owner brief from dun-bf, 2026-11-10 (Carl approved).
 Layers in order, each usable alone. dun pins tags; tags/push need Carl's OK.
 
+Tags: v0.4.1 @ 8d454ad, v0.5.0 @ 2f3ad29 (pushed 2026-11-12; M1 full suite all pass at 2f3ad29, root 1174 s, vet clean).
+GitHub releases v0.4.1 and v0.5.0 not made (Claude Code classifier blocks `gh release create`; Carl runs it).
+
 ## Active work
 
 - ✅ 0. Measure — see done.md.
@@ -151,7 +154,7 @@ arm64 (M1) TestWideInvariant failure at v0.4.0 root-caused: chroma v2.27.0 250 m
 - ✅ cachedFormatter.Format recovers a panic → error; Render/Stream return "" and the error (TestCachedFormatterPanic, TestRenderLexerPanic).
 - **risks**: a host that does not opt in still gets Error tokens under load; regexp2 setting written without a lock (call before rendering);
   raw *glamour.TermRenderer hosts get glamour's partial output with the error. join tests render no code: no TestMain there.
-- **next**: tag v0.4.1/v0.5.0 (Carl); dun-bf: call DisableLexTimeout at dun start (dun's call).
+- **next**: dun-bf: call DisableLexTimeout at dun start (dun's call).
 - `go test -short -timeout 60m ./...` at 6593921: all ok (exit 0), root 1040 s, vet clean.
 
 ### ◐ Table rows single line (Carl 2026-11-11; decisions.md "table rows, single line")
@@ -159,7 +162,7 @@ Replaces the 8-row hold (L6b's header hold kept for the header-only state only).
 - ✅ wide.go: a top-level table wider than the width is a wide block with or without WideBlocks (cut at the width when off);
   tablehold.go: held only until the delimiter row's "\n", read on the text before heal. Tests in tablehold_test.go.
 - TestTableNoShrinkTokens after the heal merge: 0 shrinks not at a table tail (was showcase 7, answer-20k 8, table-callout 1).
-- **next**: Carl review; dun note (dun-bf session's).
+- **next**: Carl review. dun note sent (v0.5.0).
 - **risks**: rows with `@`/emoji shortcode, tables in lists/quotes/form bodies, glamour opts, raw glamour Renderer still wrap
   (height can change while streaming; raw glamour lost its 8-row hold); a table past 512 cells shrinks columns (wraps);
   a delimiter row typed with an extra cell flips table → paragraph.
