@@ -3,6 +3,8 @@ package bubbleteandmd
 import (
 	"slices"
 	"sort"
+
+	"github.com/iodesystems/bubbleteandmd/internal/directive"
 )
 
 // Doc is one reply with interactive forms: a Stream that draws in a State
@@ -12,7 +14,9 @@ import (
 // that was not (Carl 2026-11-11).
 //
 // The layout stays as streamed until an action changes it: Frame and Final
-// draw the zero State, and the end of the stream changes nothing. Focus
+// draw the zero State, and the end of the stream changes no form. One
+// exception: a table tail that Frame held as a placeholder (fewer than 8
+// body rows, tablehold.go) is drawn by Final. Focus
 // alone changes no line count or width (a same-width cue only). After an
 // action that returns true, render again (Frame or Final with the same
 // source) to show it; Stops and Focused are those of the last render. A
@@ -30,10 +34,12 @@ type Doc struct {
 	// last: the key focused before Blur, which Focus returns to.
 	last string
 	// viewport (viewport.go): h lines shown from line off of out (total
-	// lines); reveal: what to scroll into view at the next render.
+	// lines); reveal: what to scroll into view at the next render; opened:
+	// the view at this height has been placed on an output.
 	h, off, total int
 	out           string
 	reveal        reveal
+	opened        bool
 }
 
 // StopKind is the kind of form a Stop is.
@@ -173,7 +179,11 @@ func (d *Doc) Focused() (Stop, bool) {
 
 // State returns the Doc's State. The host may read it (State.Focused in
 // notty, where focus has no colour); a change to it shows on the next
-// render.
+// render. On a width change the host makes a new Renderer and Doc and
+// copies the State: `*nd.State() = *old.State()`. Form keys are byte
+// offsets in the source, the same at every width, so the forms keep their
+// folds, tabs and focus. The copy shares the State's maps; use old no
+// more.
 func (d *Doc) State() *State { return &d.st }
 
 func (d *Doc) index(key string) int {
@@ -326,9 +336,20 @@ func (d *Doc) tabs(key string, a Action) bool {
 	return true
 }
 
+// cursorRow is the index in rows (drawn tree rows) of the row the renderer
+// draws the cursor on; 0 when rows is empty.
+func cursorRow(rows []Mark, cursor string) int {
+	paths := make([]string, len(rows))
+	for i, r := range rows {
+		paths[i] = r.Path
+	}
+	return max(directive.CursorRow(paths, cursor), 0)
+}
+
 // tree: ←/→ move the cursor over the drawn folder rows (wrapping), enter
-// opens or closes the folder at the cursor. The cursor is the State's
-// Cursor path; "" is the first row, as the renderer reads it.
+// opens or closes the folder at the cursor; on a file row it does nothing
+// and is consumed, so the host does not read it as its own enter. The
+// cursor row is the renderer's (directive.CursorRow).
 func (d *Doc) tree(key string, a Action) bool {
 	rows := d.rows[key]
 	var folders []Mark
@@ -338,20 +359,14 @@ func (d *Doc) tree(key string, a Action) bool {
 		}
 	}
 	if len(rows) == 0 || len(folders) == 0 {
-		return false
+		return a == ActionToggle && len(rows) > 0
 	}
 	v := d.st.Trees[key]
-	cur := 0 // index in rows
-	for i, r := range rows {
-		if r.Path == v.Cursor {
-			cur = i
-			break
-		}
-	}
+	cur := cursorRow(rows, v.Cursor)
 	switch a {
 	case ActionToggle:
 		if !rows[cur].Folder {
-			return false
+			return true
 		}
 		closed := make(map[string]bool, len(v.Closed)+1)
 		for p, c := range v.Closed {

@@ -69,6 +69,46 @@ func readTreeLine(line string) (TreeRow, bool) {
 	return TreeRow{Depth: depth, Name: trimJS(name), Comment: comment}, true
 }
 
+// CursorRow is the index in drawn (the TreeRow.Path of each drawn row of a
+// tree, in row order) of the row that shows the cursor (TreeState.Cursor):
+// the row cursor names; for a row hidden under a closed folder, that
+// folder (the last drawn row above it whose path is an ancestor of
+// cursor's); else ("", or no such row) the first row. The renderer and
+// the Doc both read the cursor with it. -1 when drawn is empty.
+func CursorRow(drawn []string, cursor string) int {
+	if len(drawn) == 0 {
+		return -1
+	}
+	if cursor == "" {
+		return 0
+	}
+	plain, at := splitPath(cursor)
+	best := 0
+	for i, p := range drawn {
+		if p == cursor {
+			return i
+		}
+		if q, j := splitPath(p); j < at && strings.HasPrefix(plain, strings.TrimSuffix(q, "/")+"/") {
+			best = i
+		}
+	}
+	return best
+}
+
+// splitPath splits a TreeRow.Path into its plain path and row index (-1
+// when it has none).
+func splitPath(p string) (string, int) {
+	k := strings.LastIndexByte(p, '#')
+	if k < 0 {
+		return p, -1
+	}
+	i, err := strconv.Atoi(p[k+1:])
+	if err != nil {
+		return p, -1
+	}
+	return p[:k], i
+}
+
 // ParseTree reads the body of a ```tree fence into rows.
 func ParseTree(source string) []TreeRow {
 	var rows []TreeRow

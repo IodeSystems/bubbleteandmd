@@ -26,7 +26,8 @@ func window(out string, off, h int) string {
 
 // TestDocViewportWindow: with a height, Frame and Final return the slice
 // of the whole output at Offset, and a view never scrolled follows the
-// bottom.
+// bottom when the first frame fits, else stays at the top (h1: the first
+// frame is 3 lines).
 func TestDocViewportWindow(t *testing.T) {
 	docs := []invCase{{"reply", docReply}, {"long", longReply(30)}}
 	for _, style := range []string{"dark", "notty"} {
@@ -36,11 +37,22 @@ func TestDocViewportWindow(t *testing.T) {
 				d := NewDoc(r, style, NewCache(64))
 				d.SetHeight(h)
 				s := NewStream(r, style, NewCache(64))
+				top := -1 // first frame taller than h: 1
 				check := func(at string, got, full string) {
 					t.Helper()
 					n := outLines(full)
-					if d.Lines() != n || d.Offset() != max(n-h, 0) {
-						t.Fatalf("%s/%s/h%d %s: offset %d lines %d, want bottom of %d", c.name, style, h, at, d.Offset(), d.Lines(), n)
+					if top < 0 {
+						top = 0
+						if n > h {
+							top = 1
+						}
+					}
+					want := max(n-h, 0)
+					if top == 1 {
+						want = 0
+					}
+					if d.Lines() != n || d.Offset() != want {
+						t.Fatalf("%s/%s/h%d %s: offset %d lines %d, want %d", c.name, style, h, at, d.Offset(), d.Lines(), want)
 					}
 					if want := window(full, d.Offset(), h); got != want || d.View() != want {
 						t.Fatalf("%s/%s/h%d %s: %s", c.name, style, h, at, firstDiff(want, got))
@@ -126,8 +138,8 @@ func TestDocViewportFocus(t *testing.T) {
 			d := newTestDoc(t, style, 60)
 			d.SetHeight(h)
 			docFinal(t, d, docReply)
-			if d.Offset() == 0 {
-				t.Fatalf("%s: reply fits in %d lines", style, h)
+			if d.Lines() <= h || d.Offset() != 0 {
+				t.Fatalf("%s/h%d: %d lines, offset %d: want taller than h, open at the top", style, h, d.Lines(), d.Offset())
 			}
 			if !d.Focus() {
 				t.Fatal("Focus")
@@ -252,5 +264,75 @@ func TestDocSetHeight(t *testing.T) {
 	d.SetHeight(-1)
 	if d.Height() != 0 || d.Offset() != 0 {
 		t.Error("negative height")
+	}
+}
+
+// TestDocViewportOpen: the view opens on its first output at the top when
+// that output is taller than the height, at the bottom when it fits; the
+// same with SetHeight before or after Final (audit 2026-11-11: before, a
+// SetHeight before the first render opened at the bottom).
+func TestDocViewportOpen(t *testing.T) {
+	const h = 5
+	for _, src := range []string{longReply(20), "Short.\n"} {
+		before := newTestDoc(t, "dark", 50)
+		before.SetHeight(h)
+		docFinal(t, before, src)
+		after := newTestDoc(t, "dark", 50)
+		docFinal(t, after, src)
+		after.SetHeight(h)
+		for _, d := range []*Doc{before, after} {
+			if d.Offset() != 0 {
+				t.Errorf("%d lines: offset %d, want 0", d.Lines(), d.Offset())
+			}
+			// a later render does not move a view that opened at the top.
+			docFinal(t, d, src+"More.\n")
+			if want := 0; d.Lines() > h && d.Offset() != want {
+				t.Errorf("%d lines, re-render: offset %d, want %d", d.Lines(), d.Offset(), want)
+			}
+		}
+		if before.View() != after.View() {
+			t.Errorf("order changes the view: %s", firstDiff(after.View(), before.View()))
+		}
+	}
+	// streaming: the first frames fit, so the view follows the bottom.
+	d := newTestDoc(t, "dark", 50)
+	d.SetHeight(h)
+	for _, p := range corpus.LinePrefixes(longReply(20)) {
+		if _, err := d.Frame(p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if d.Lines() <= h || d.Offset() != d.Lines()-h {
+		t.Errorf("stream: offset %d of %d, want the bottom", d.Offset(), d.Lines())
+	}
+	// back to 0 and to h again: opens again on the current output (top).
+	d.SetHeight(0)
+	d.SetHeight(h)
+	if d.Offset() != 0 {
+		t.Errorf("0 → h: offset %d", d.Offset())
+	}
+}
+
+// TestDocViewportScrollWinsReveal: a scroll between a focus change and the
+// next render cancels the pending reveal; the user's scroll wins.
+func TestDocViewportScrollWinsReveal(t *testing.T) {
+	d := newTestDoc(t, "dark", 60)
+	d.SetHeight(2)
+	docFinal(t, d, docReply)
+	d.Focus()
+	d.FocusLast() // the last stop, far below the top
+	if !d.Do(ActionTop) {
+		t.Fatal("home not consumed")
+	}
+	docFinal(t, d, docReply)
+	s, _ := d.Focused()
+	if d.Offset() != 0 || s.Line < 2 {
+		t.Errorf("offset %d (stop at %d), want 0: the scroll is kept", d.Offset(), s.Line)
+	}
+	// with no scroll between, the same focus change reveals the stop.
+	d.FocusLast()
+	docFinal(t, d, docReply)
+	if d.Offset() == 0 {
+		t.Error("FocusLast with no scroll: stop not revealed")
 	}
 }

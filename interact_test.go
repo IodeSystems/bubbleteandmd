@@ -309,14 +309,15 @@ func TestDocActions(t *testing.T) {
 		// enter from stacked: one-tab view too
 		step(ActionToggle, true, 0, "1/3› macOS")
 
-		// tree: cursor on a file (first row): toggle not consumed; →
-		// moves to the next folder; toggle closes it; ← wraps to the last
+		// tree: cursor on a file (first row): toggle consumed, changes
+		// nothing (the host must not read it as its own enter); → moves
+		// to the next folder; toggle closes it; ← wraps to the last
 		s = focusKind(t, d, StopTree, 0)
-		if d.Do(ActionToggle) {
-			t.Errorf("%s: toggle on a file row consumed", style)
+		if !d.Do(ActionToggle) {
+			t.Errorf("%s: toggle on a file row not consumed", style)
 		}
 		if _, ok := d.st.Trees[s.Key]; ok {
-			t.Errorf("%s: focus alone made a tree entry", style)
+			t.Errorf("%s: focus or toggle on a file made a tree entry", style)
 		}
 		if !d.Do(ActionRight) || !strings.HasPrefix(d.st.Trees[s.Key].Cursor, "src/#") {
 			t.Fatalf("%s: tree → cursor %q", style, d.st.Trees[s.Key].Cursor)
@@ -436,6 +437,68 @@ func TestDocNoStateRenderer(t *testing.T) {
 	docFinal(t, d, docReply)
 	if len(d.Stops()) != 0 || d.Focus() || d.Do(ActionNext) {
 		t.Error("stops with a plain Renderer")
+	}
+}
+
+// TestDocTreeHiddenCursor: a Cursor that names a row hidden under a closed
+// folder acts on that folder, the row the renderer draws the cursor on
+// (audit 2026-11-11: Doc used the first row, a file, and toggle did
+// nothing).
+func TestDocTreeHiddenCursor(t *testing.T) {
+	d := newTestDoc(t, "notty", 60)
+	docFinal(t, d, docReply)
+	s := focusKind(t, d, StopTree, 0)
+	const app, main = "src/app/#2", "src/app/main.go#3"
+	d.st.Trees = map[string]TreeState{s.Key: {Closed: map[string]bool{app: true}, Cursor: main}}
+	out := xansi.Strip(docFinal(t, d, docReply))
+	if !strings.Contains(out, "▶ app/") || strings.Contains(out, "main.go") {
+		t.Fatalf("renderer: cursor not on the closed app/ row:\n%s", out)
+	}
+	if !d.Do(ActionToggle) || d.st.Trees[s.Key].Closed[app] || d.st.Trees[s.Key].Cursor != app {
+		t.Fatalf("toggle: %+v", d.st.Trees[s.Key])
+	}
+	if out := xansi.Strip(docFinal(t, d, docReply)); !strings.Contains(out, "main.go") {
+		t.Errorf("app/ not opened:\n%s", out)
+	}
+}
+
+// TestDocStateNewWidth: on a width change the host makes a new Doc and
+// copies the State; form keys are byte offsets, so the new Doc draws the
+// same forms folded, selected and focused as a Doc at that width that got
+// the same keys.
+func TestDocStateNewWidth(t *testing.T) {
+	act := func(d *Doc) {
+		docFinal(t, d, docReply)
+		d.Focus() // details
+		d.Do(ActionToggle)
+		docFinal(t, d, docReply)
+		d.Do(ActionNext) // tree
+		d.Do(ActionRight)
+		d.Do(ActionToggle) // src/ closed
+		docFinal(t, d, docReply)
+		d.Do(ActionNext) // tabs
+		d.Do(ActionRight)
+		d.Do(ActionRight) // one-tab view, Linux
+		docFinal(t, d, docReply)
+	}
+	for _, style := range docStyles {
+		old := newTestDoc(t, style, 76)
+		act(old)
+		nd := newTestDoc(t, style, 36)
+		*nd.State() = *old.State()
+		got := docFinal(t, nd, docReply)
+		ref := newTestDoc(t, style, 36)
+		act(ref)
+		if want := docFinal(t, ref, docReply); got != want {
+			t.Errorf("%s: copied state: %s", style, firstDiff(want, got))
+		}
+		plain := xansi.Strip(got)
+		if strings.Contains(plain, "Hidden text.") || strings.Contains(plain, "main.go") || !strings.Contains(plain, "2/3") {
+			t.Errorf("%s: state not drawn:\n%s", style, plain)
+		}
+		if f, ok := nd.Focused(); !ok || f.Kind != StopTabs {
+			t.Errorf("%s: focus %v %v", style, f, ok)
+		}
 	}
 }
 

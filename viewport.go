@@ -9,12 +9,21 @@ import "strings"
 // [Offset, Offset+h) of the output, and the scroll actions move Offset.
 
 // SetHeight sets the number of lines the Doc shows (0 or less: all of
-// them). A view at the bottom stays at the bottom. From height 0 the view
-// starts at the top. Width is the host's: for a new width make a new
-// Renderer and Doc.
+// them). A view at the bottom stays at the bottom. The view opens on the
+// first output it shows: at the top when the output is taller than h,
+// else at the bottom (it then follows a stream as it grows). That output
+// is the current one when SetHeight comes after a render, else the next
+// render's, so the order of SetHeight and Final does not matter. Width is
+// the host's: for a new width make a new Renderer and Doc and copy the
+// State (Doc.State).
 func (d *Doc) SetHeight(h int) {
 	h = max(h, 0)
 	bottom := d.h > 0 && d.off >= d.maxOff()
+	if d.h == 0 || h == 0 {
+		// from height 0 onto an output: it opens now, at the top (below:
+		// off stays 0), which is also the bottom when it fits
+		d.opened = h > 0 && d.out != ""
+	}
 	d.h = h
 	switch {
 	case h == 0:
@@ -60,13 +69,19 @@ const (
 
 // place takes a new output: a view at the bottom stays at the bottom (the
 // reply grows under a view that is not, and nothing in it moves); after a
-// focus change the focused stop is scrolled into view.
+// focus change the focused stop is scrolled into view. The first output
+// at a height opens the view: at the top when it is taller than the
+// height, else at the bottom.
 func (d *Doc) place(out string) {
 	bottom := d.off >= d.maxOff()
 	d.out, d.total = out, outLines(out)
 	if d.h == 0 {
 		d.reveal = revealNone
 		return
+	}
+	if !d.opened {
+		bottom = d.total <= d.h
+		d.opened = true
 	}
 	if bottom {
 		d.off = d.maxOff()
@@ -87,13 +102,9 @@ func (d *Doc) target(r reveal) (line, n int, ok bool) {
 	if !ok {
 		return 0, 0, false
 	}
-	if r == revealCursor && s.Kind == StopTree {
-		cur := d.st.Trees[s.Key].Cursor
-		for i, r := range d.rows[s.Key] {
-			if r.Path == cur || (cur == "" && i == 0) {
-				return r.Line, r.Height, true
-			}
-		}
+	if rows := d.rows[s.Key]; r == revealCursor && s.Kind == StopTree && len(rows) > 0 {
+		row := rows[cursorRow(rows, d.st.Trees[s.Key].Cursor)]
+		return row.Line, row.Height, true
 	}
 	return s.Line, s.Height, true
 }
@@ -126,6 +137,8 @@ func (d *Doc) scroll(a Action) {
 		d.off = d.maxOff()
 	}
 	d.off = min(max(d.off, 0), d.maxOff())
+	// A reveal still pending (focus changed, no render since) is dropped:
+	// the user's own scroll wins.
 	d.reveal = revealNone
 }
 

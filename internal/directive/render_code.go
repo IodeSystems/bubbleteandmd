@@ -36,16 +36,15 @@ func renderTree(d Directive, c Ctx) ([]string, []Mark, error) {
 	}
 	cursor := -1
 	if c.State.focused(c.Key) && len(rows) > 0 {
-		cursor = 0
+		var at []int
+		var paths []string
 		for i, r := range rows {
-			if ts.Cursor != "" && r.Path == ts.Cursor {
-				cursor = i
-				break
+			if shown[i] {
+				at = append(at, i)
+				paths = append(paths, r.Path)
 			}
 		}
-		for cursor >= 0 && !shown[cursor] {
-			cursor = rows[cursor].Parent
-		}
+		cursor = at[CursorRow(paths, ts.Cursor)]
 	}
 	lastAt := map[int]bool{}
 	var out []string
