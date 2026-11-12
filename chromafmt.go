@@ -133,6 +133,14 @@ func (c *cachedFormatter) table(style *chroma.Style) map[chroma.TokenType]string
 	if t, ok := c.tabs[style]; ok {
 		return t
 	}
+	t := escapeTable(style)
+	c.tabs[style] = t
+	return t
+}
+
+// escapeTable is the escape sequence of each token type of style, as
+// stock terminal256 writes them.
+func escapeTable(style *chroma.Style) map[chroma.TokenType]string {
 	// stock clears the background colour (clearBackground) and keeps the
 	// Background entry without inheritance.
 	bld := style.Builder()
@@ -144,8 +152,18 @@ func (c *cachedFormatter) table(style *chroma.Style) map[chroma.TokenType]string
 	for _, tt := range cleared.Types() {
 		t[tt] = escape(cleared.Get(tt))
 	}
-	c.tabs[style] = t
 	return t
+}
+
+// escapeOf is the escape of token type tt in table t, read as Format reads
+// it: the type, its sub-category, its category, Text, Background.
+func escapeOf(t map[chroma.TokenType]string, tt chroma.TokenType) string {
+	for _, k := range [...]chroma.TokenType{tt, tt.SubCategory(), tt.Category(), chroma.Text} {
+		if clr, ok := t[k]; ok {
+			return clr
+		}
+	}
+	return t[chroma.Background]
 }
 
 // Format is chroma's indexedTTYFormatter.Format with the table cached.
@@ -168,20 +186,7 @@ func (c *cachedFormatter) Format(w io.Writer, style *chroma.Style, it chroma.Ite
 	}()
 	theme := c.table(style)
 	for token := it(); token != chroma.EOF; token = it() {
-		clr, ok := theme[token.Type]
-		if !ok {
-			clr, ok = theme[token.Type.SubCategory()]
-			if !ok {
-				clr, ok = theme[token.Type.Category()]
-				if !ok {
-					clr, ok = theme[chroma.Text]
-					if !ok {
-						clr = theme[chroma.Background]
-					}
-				}
-			}
-		}
-		writeToken(w, clr, token.Value)
+		writeToken(w, escapeOf(theme, token.Type), token.Value)
 	}
 	return nil
 }

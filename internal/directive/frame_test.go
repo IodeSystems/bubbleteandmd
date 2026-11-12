@@ -11,6 +11,14 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 )
 
+func TestCellWidth(t *testing.T) {
+	for _, l := range []string{"", "abc", "\x1b[38;5;252mab\x1b[m c", "\x1b[48;5;22m  \x1b[0m", "a…b", "\x1b[2mx\x1b[m", "\x1b]8;;u\x07x", "\x1b[", "tab\there", "\x1b[1;2"} {
+		if got, want := cellWidth(l), xansi.StringWidth(l); got != want {
+			t.Errorf("cellWidth(%q) = %d, want %d", l, got, want)
+		}
+	}
+}
+
 func glamourPiece(t *testing.T, r *glamour.TermRenderer, md string, first bool) string {
 	t.Helper()
 	e, _ := r.Render("")
