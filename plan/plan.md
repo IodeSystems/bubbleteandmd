@@ -154,6 +154,17 @@ arm64 (M1) TestWideInvariant failure at v0.4.0 root-caused: chroma v2.27.0 250 m
 - **next**: tag v0.4.1/v0.5.0 (Carl); dun-bf: call DisableLexTimeout at dun start (dun's call).
 - `go test -short -timeout 60m ./...` at 6593921: all ok (exit 0), root 1040 s, vet clean.
 
+### ◐ Diff fences (Carl level 2, 2026-11-11; decisions.md "diff fences")
+```diff```/```patch``` (title optional): tinted added/removed lines, faint headers, word diff on index-wise pairs,
+inner chroma colours from the title's extension, never wrapped (… cut; WideBlocks: pane cut + note). diff.go, internal/diffview.
+- ✅ render, Theme.Diff tints, titled form (Ctx.Diff), line memo, Stream renders the tail whole (no codestream), goldens
+  testdata/golden/docs/diff_* (sample testdata/directives/diff.md), TestDiff* (styles, wide, stream invariant), bench/diff_bench_test.go.
+- **next**: Carl reviews tints (default chosen, see decisions.md); diff segment in cmd/demo/showcase.md (left out: another agent edits cmd/demo).
+- **risks**: per-line lexing (block comments / multi-line strings colour as code); fences in lists/quotes still glamour; indented
+  opener not covered; partial closing fence shrink is heal's (shared with every fence).
+- **blocking decisions**: none. Assumed: no-WideBlocks cut with "…" (brief: "never wrap"); `!` lines added (hljs); tint colours.
+- **optional extensions**: lex whole hunk sides for multi-line tokens; side-by-side view; word diff on unequal runs (LCS of lines).
+
 ### ✅ Demo (Carl approved 2026-11-11)
 `cmd/demo` (`make demo` → ./bin/demo): split screen, Doc vs naive whole-reply glamour, same token schedule (corpus mulberry32,
 seed 42, rune-sized tokens), renders off the UI goroutine (one in flight per pane; Doc keys and rebuilds wait for it).

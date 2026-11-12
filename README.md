@@ -27,7 +27,12 @@ open code fence, a link without its `)`) shows raw until it closes.
    `> [!TABS]` + `####` panels, `> [!STATS]`, `> [!PROS]`/`> [!CONS]`,
    `> [!DETAILS]`, `> [!SOURCES]`, ```` ```tree ```` fences, `title="…"` on
    code fences, GFM task lists. Drawn with lipgloss. Mermaid and math show
-   as code.
+   as code. ```` ```diff ```` / ```` ```patch ```` fences: added and
+   removed lines on a green/red background tint, changed words of a
+   removed/added pair stronger, hunk and file headers faint, one line per
+   source line (cut, not wrapped); with `title="x.go"` the code inside is
+   coloured by the file's language. notty: no colour, the `+`/`-` marker
+   only. Sample: testdata/directives/diff.md.
 3. **Interactive blocks.** A bubbletea component that holds fold and tab
    state per block id across re-renders: fold `[!DETAILS]` and trees, switch
    tabs. While a block streams, tabs show stacked.
