@@ -122,7 +122,9 @@
   terminal256) is the reference.
 - 2026-11-11 (table hold, Carl): while Frame streams, a GFM table that is the
   last block and has fewer than 8 body rows (`holdRows`, counted on the
-  healed tail, so a partial row is not counted) draws as one muted line
+  healed tail, so a partial row is not counted; a body row is every line
+  after the delimiter row up to a blank line, as the table parser reads
+  it, so `x | y` with no leading pipe counts — audit 2026-11-11) draws as one muted line
   `table…` (DirectiveRenderer: Muted style in the glamour paragraph frame;
   any other Renderer: a plain paragraph). It becomes the table when it has 8
   rows, when a later block starts, or at Final. Reason: column widths settle
@@ -190,12 +192,20 @@
   (Mark gained Panels and Folder for this), in line order; focus is by
   form key, so a stop keeps focus as the reply grows; forms hidden in a
   folded details or another tab are not stops. Keys (DefaultKeyMap): tab /
-  shift+tab, enter and space toggle, ←/→, esc; ↑/↓ unbound (host scroll).
+  shift+tab, enter and space toggle, ←/→, esc; ↑/↓ unbound in L5 (host
+  scroll); since L5b bound to scroll.up/down, which act only with a height
+  (h > 0) and return false at h = 0, so the host still scrolls there.
   Tabs: toggle switches stacked ↔ one-tab; ←/→ from stacked switch to
   one-tab at the selected panel (first press does not move), then step,
   wrapping. Tree (one stop): ←/→ move the cursor over the drawn folder
-  rows, wrapping; toggle opens/closes the folder at the cursor, not
-  consumed on a file row. A tree gets its State entry (fold marks, which
+  rows, wrapping; toggle opens/closes the folder at the cursor. Toggle on
+  a focused tree is always consumed: on a file row (or a tree with no
+  folder) it does nothing (audit 2026-11-11; L5 returned false, and a host
+  could read the enter as its own submit). The cursor row is the
+  renderer's (`directive.CursorRow`, one function for both): the row
+  Cursor names, a row hidden under a closed folder shows on that folder,
+  else the first row (audit 2026-11-11: the Doc used the first row while
+  the renderer drew the folder). A tree gets its State entry (fold marks, which
   shift folder names 2 cells) on its first ←/→/toggle, not on focus. No
   NormalizeKey: dun's folds shift+enter / SS3 M into ctrl+j (composer
   newline), which means nothing to a Doc, and a real keypad enter arrives
@@ -223,3 +233,30 @@
   the whole output. SetHeight keeps a view at the bottom at the bottom;
   from h = 0 the view starts at the top. Width is the host's (new Renderer
   and Doc). Reset keeps height and Offset.
+- 2026-11-11 (L6 audit fixes; orchestrator's calls):
+  - Opening a viewport: the first output a height shows opens the view
+    at the top when it is taller than h, at the bottom when it fits (and
+    then follows). That output is the current one when SetHeight comes
+    after a render, else the next render's, so SetHeight before or after
+    Final gives the same view. Before, a SetHeight before the first render
+    followed the bottom (total was 0), after it opened at the top.
+    Streaming still follows: its first frames fit. Risk: h smaller than
+    the first frame (h 1-2: the first paragraph frame is 3 lines) or a
+    first frame that is already tall opens at the top and does not follow.
+  - A scroll action between a focus change and the next render drops the
+    pending reveal: the user's own scroll wins (test
+    TestDocViewportScrollWinsReveal).
+  - Stream end and forms: Final changes no form, but a table tail that
+    Frame held as `table…` is drawn by Final (Doc comment says so).
+  - Width change: the host makes a new Renderer and Doc and copies the
+    State, `*nd.State() = *old.State()`. Form keys are byte offsets in
+    the source, the same at every width, so folds, tabs, tree folders and
+    focus carry over (test TestDocStateNewWidth). No `SetState` or NewDoc
+    option: `State()` already returns the pointer, so this needs no new
+    API. The copy shares the maps; the old Doc is not used again.
+    Height, Offset and the Blur memory are not copied (host calls
+    SetHeight).
+  - Lone table header: `| a | b |` alone draws as a paragraph, then as
+    the one-line `table…` when the delimiter row arrives; a header that
+    wraps (79 cells at w50: 6 → 5 lines) makes that frame shrink by the
+    wrapped lines. Kept (Carl's hold design); reported.

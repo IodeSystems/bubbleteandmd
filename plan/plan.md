@@ -27,7 +27,7 @@ DAG: ✅ D1 frame spike (internal/spike/frame_spike_test.go: margin 2 plain, con
 - Carl 2026-11-10: B1 NewRenderer(style,width) · B2 top level + inside form bodies · B3 DETAILS open · B4/B5 kind label always + fixed GitHub hues, notty plain · B6 64 cells · B7 $$ as math code · O1 section numbers, O2 figures, O3 raw <details> IN scope.
 ### ◐ 3. Interactive component (planner 2026-11-11)
 Shape: not a tea.Model (host needs "key consumed" bool). `Doc` per reply wraps Stream + state map; `Frame/Final`, `Do(Action) bool`,
-`HandleKey(tea.KeyPressMsg, KeyMap) bool`, `Focus/Blur`, `Stops() []Stop{ID,Kind,Line,Height}`, `Reset()`.
+`HandleKey(tea.KeyPressMsg, KeyMap) bool`, `Focus/Blur`, `Stops() []Stop{Key,Kind,Line,Height}`, `Reset()`.
 Carl 2026-11-11: layout stays as streamed (tabs stacked, details/trees open) until the user interacts; stream end changes nothing ·
 bubbletea import OK for thin HandleKey · tab/shift+tab move stops, enter/space toggle, ←/→ tabs, ↑/↓ = scroll · tabs switch to
 one-tab view on ←/→ or enter, not on focus · tree = one stop, rows walked inside · start now, before dun adopts Stream ·
@@ -61,7 +61,15 @@ scrolled up); unconstrained (height 0) → render all, scroll keys return false,
   **risks (L5b)**: Offset is stale between Focus/an action and the next render (reveal applies at render); scrolled-up view over the healed tail
   can change bytes (offset still fixed); toggle/tab switch do not scroll (focused header can stay out of view only if it already was).
   **optional extensions**: scroll indicator (host can draw from Offset/Lines/Height); scroll inside a tall focused stop on ↑/↓.
-- ◻ L6 audit · L7 docs
+- ✅ L6 audit (decisions.md "L6 audit fixes"): viewport opens at top when the first output overflows h, else bottom (SetHeight order no
+  longer matters); tablehold counts `x | y` body rows; tree toggle always consumed on a focused tree; Doc/viewport cursor row =
+  renderer's (`directive.CursorRow`); scroll drops a pending reveal (kept, tested); width change = new Doc + `*nd.State() = *old.State()`
+  (TestDocStateNewWidth, no new API); Doc comment states the held-table exception.
+  Reported, not changed: lone header line → paragraph → `table…`; a wrapped header shrinks that frame (79 cells w50: 6→5 lines).
+  **risks (L6)**: h below the first frame's height (h 1-2) or a tall first frame opens at the top and does not follow; CursorRow
+  reads ancestry from TreeRow.Path (`plain#i`): a made-up Cursor path under a drawn folder now shows on that folder (was: row 0).
+  `go test -short -timeout 60m ./...` with L6: all ok (exit 0), root 524 s, vet clean.
+- ◻ L7 docs
   dun adoption: NewStream → NewDoc, Focus when its answer is entered (like insideWide); viewport mode only if dun hands the pane to the Doc.
   **blocking decision (Carl, open 2026-11-11)**: whether/how dun's input handling splits out into a shared lib — L5 built only what Doc needs.
   **risks (L5)**: Stops are stale between a consumed key and the next render (host must render after true); notty focus on a tree whose cursor is a

@@ -60,14 +60,18 @@ out, err = s.Final(reply)  // once, when the reply ends
   of NewStream; `d.Frame`/`d.Final` as above. The layout stays as streamed
   until the user acts. `d.Focus()` gives the Doc the keys;
   `d.HandleKey(msg, bubbleteandmd.DefaultKeyMap())` returns false for a key
-  the host handles (↑/↓, tab past the last form, esc). Render again after a
-  true; `d.Stops()` and `d.Focused()` give the lines to scroll to.
+  the host handles (↑/↓ at height 0, tab past the last form, esc). Render
+  again after a true; `d.Stops()` and `d.Focused()` give the lines to
+  scroll to. On a width change make a new Renderer and Doc and copy the
+  state: `*nd.State() = *old.State()` (form keys are byte offsets, the
+  same at every width).
 - Viewport: `d.SetHeight(h)` (h > 0) makes the Doc own the scroll.
   Frame/Final/`d.View()` return only lines `[d.Offset(), d.Offset()+h)`;
   ↑/↓, pgup/pgdown, home/end scroll (consumed, also at an edge and with no
   focus; show `d.View()`, no render needed); a focus change scrolls the
   focused stop into view; a view at the bottom follows the reply as it
-  grows, a view scrolled up stays put. Height 0 (default): all lines, the
+  grows, a view scrolled up stays put. The view opens at the top when the
+  first output it shows is taller than h, else at the bottom. Height 0 (default): all lines, the
   scroll keys return false. Stop lines count in the whole output.
 - On an error, show the raw text (after `Sanitize`).
 - Call `Sanitize` on model text you render outside Stream.
