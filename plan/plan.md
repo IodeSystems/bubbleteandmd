@@ -163,12 +163,18 @@ shrink flash in the title, time to final; p freeze, n one token, s summary (auto
 Naive pane gets `visible(src)` (controls as pictures, not timed); left counts Sanitize's removed bytes (not timed).
 Tests: TestModelHeadless (+summary), TestScenarios, TestScenarioSwitch (thread history), TestFreeze, TestUnsafe (no control on screen),
 TestShrinkFlash, TestVisible, TestSpark. tmux smoke 200x50 long @300 tok/s 20 s: see the commit / report.
-- **risks**: the Doc's own height shrinks 1 line 7× on showcase.md (w79 dark, seed 42), library, open to Carl. Doc holds a growing
+- **risks**: Doc holds a growing
   tail table as `table…` while glamour already draws rows (long-100k, heal) — reads as "ours is behind"; library (table hold).
   Naive lag stays ~1 frame (it renders the newest prefix each time): the O(n) shows as fps / busy / dropped, not as token lag.
   Render ms is wall time on the render goroutine, not thread CPU time. `visible` widens each control to one cell, so the naive
   pane's wrap differs from what glamour does with the raw bytes.
 - **optional extensions**: a key to switch which pane takes the keys; thread CPU time (getrusage per thread) in place of wall time.
+Test: headless model (TestModelHeadless: ticks, keys, mid-stream resize; left view == fresh Doc Final view). tmux smoke ok.
+- ✅ no shrink on showcase.md (heal rules not in llx; decisions.md "heal, no shrink on the showcase"): was 7 shrinks
+  (token, seed 42), 10 more at rune prefixes, 4 in corpus form docs; now 0 (TestShowcaseNoShrink, TestNoShrinkRules).
+  **risks**: a lone `2`, `<abc` (no `>`), `` `` `` line or trailing `*` shows one character late; other docs/widths
+  may still shrink (only showcase + corpus form docs checked); quoted fences now get a heal closer `> ````.
+  `go test -short -timeout 60m ./...`: all ok (exit 0), root 1456 s, vet clean.
 - Assumed: "dropped" = ticks with new tokens a pane never drew; space pauses (toggle is enter only in the demo's KeyMap).
 
 ## Decisions / assumptions

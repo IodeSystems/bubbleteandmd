@@ -136,7 +136,8 @@ func TestClose(t *testing.T) {
 	run(t, "closes a dangling single-asterisk italic", pair{"this is *important", "this is *important*"})
 	run(t, "closes a dangling single-underscore italic", pair{"this is _important", "this is _important_"})
 	run(t, "strips a bare trailing single emphasis opener", pair{"open intraword a*", "open intraword a"})
-	same(t, "leaves a whitespace-flanked lone asterisk alone", "a stray *")
+	same(t, "leaves a whitespace-flanked lone asterisk alone", "a stray * here")
+	run(t, "hides a trailing lone asterisk until the next character (not in the TS)", pair{"a stray *", "a stray "})
 	same(t, "leaves complete single emphasis untouched", "an *italic* word", "an _italic_ word")
 	same(t, "does not touch a multiplication asterisk", "compute 2 * 3 now")
 	same(t, "does not touch a glob asterisk", "match *.ts files")
@@ -327,4 +328,48 @@ func TestFenceCloserIndent(t *testing.T) {
 		pair{"- a\n\n  ```sh\n  code\n", "- a\n\n  ```sh\n  code\n  ```"},
 		pair{"- a\n\n  ~~~~\n  code", "- a\n\n  ~~~~\n  code\n  ~~~~"},
 		pair{"```\ncode", "```\ncode\n```"})
+}
+
+// TestNoShrinkRules: heal rules not in the TS, each from a frame that
+// shrank while cmd/demo/showcase.md streamed (Carl's no-shrink rule).
+func TestNoShrinkRules(t *testing.T) {
+	run(t, "drops a partial closer at the fence's indent",
+		pair{"1. a\n\n   ```sh\n   go get x\n   ``", "1. a\n\n   ```sh\n   go get x\n   ```"},
+		pair{"```\ncode\n`", "```\ncode\n```"},
+		pair{"````\ncode\n```", "````\ncode\n````"},
+		pair{"```\ncode\n  ", "```\ncode\n```"},
+		pair{"~~~\ncode\n~~", "~~~\ncode\n~~~"})
+	run(t, "keeps a code line that is not a closer prefix",
+		pair{"```\ncode\n``x", "```\ncode\n``x\n```"},
+		pair{"```\ncode\n~~", "```\ncode\n~~\n```"},
+		pair{"```\ncode\n       ``", "```\ncode\n       ``\n```"})
+	run(t, "reads a fence inside a blockquote",
+		pair{"> ```text\n> line one\n", "> ```text\n> line one\n> ```"},
+		pair{"> ```text\n> line one\n> lin", "> ```text\n> line one\n> lin\n> ```"},
+		pair{"> ```text\n> line two\n>", "> ```text\n> line two\n> ```"},
+		pair{"> ```text\n> line two\n> ``", "> ```text\n> line two\n> ```"},
+		pair{"> > ```\n> > a **b", "> > ```\n> > a **b\n> > ```"})
+	same(t, "a blockquote fence ends with its quote",
+		"> ```\n> code\n> ```\nafter", "> ```\n> code\n\nafter `x`")
+	run(t, "prose after a quote fence is healed",
+		pair{"> ```\n> code\n\nafter **b", "> ```\n> code\n\nafter **b**"})
+	run(t, "hides a bare quote line, as a partial callout marker",
+		pair{"Intro\n\n> ", "Intro\n"}, pair{"Intro\n\n>", "Intro\n"}, pair{">", ""},
+		pair{"> a\n>", "> a"})
+	run(t, "closes emphasis before trailing white space",
+		pair{"1. **First**\n   *Day ", "1. **First**\n   *Day*"},
+		pair{"a **bold ", "a **bold**"}, pair{"a ~~gone\n", "a ~~gone~~"})
+	run(t, "completes a half-typed double closer",
+		pair{"- **3×*", "- **3×**"}, pair{"the **whole*", "the **whole**"})
+	run(t, "hides a lone trailing emphasis character",
+		pair{"1. **First**\n   *", "1. **First**\n   "}, pair{"- *", "- "}, pair{"_", ""})
+	same(t, "keeps a delimiter that closes a span", "an *it*", "an _it_")
+	run(t, "skips inline fixes inside a closed fence",
+		pair{"a\n\n```\nx\n\ny `z\n```\n", "a\n\n```\nx\n\ny `z\n```\n"},
+		pair{"```\n`\n```\nnow **b", "```\n`\n```\nnow **b**"})
+	run(t, "hides the start of a fence opener, ordered marker or HTML tag",
+		pair{"x\n\n``", "x\n\n"}, pair{"x\n\n   ~", "x\n\n"}, pair{"x\n\n> ``", "x\n\n"},
+		pair{"1. a\n\n2", "1. a\n\n"}, pair{"<deta", ""}, pair{"<details>\n<", "<details>\n"},
+		pair{"x\n\n</di", "x\n\n"})
+	same(t, "keeps a whole line or other text", "x\n\n``\n", "x\n\n2x", "<details>", "x\n\n`` y")
 }
