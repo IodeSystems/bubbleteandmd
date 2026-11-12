@@ -1,5 +1,7 @@
 bubbleteandmd ports ideas, the directive syntax and test corpora from
-llx-markdown (https://github.com/rsaryev/llx-markdown), under this licence:
+llx-markdown (https://github.com/rsaryev/llx-markdown; renamed flowdown in
+its v0.5.0, npm @localix-ai/flowdown), under this licence, as received
+before the rename:
 
 MIT License
 
