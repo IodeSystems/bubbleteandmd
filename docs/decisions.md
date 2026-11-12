@@ -449,7 +449,7 @@
   ASCII+SGR lines without x/ansi (cellWidth, same result; a titled diff
   frames every line each render). Not covered: fences in lists and quotes
   (glamour + chroma's diff lexer, as before), indented openers, tokens
-  over lines (a line inside a block comment lexes as code). Known, not
-  diff's: heal draws a partial closing fence (`` ` ``, ``` `` ```) as one
-  more code line, so the frame loses that line when the closer completes,
-  as for every fence (TestDiffStream allows only that).
+  over lines (a line inside a block comment lexes as code). A partial
+  closing fence (`` ` ``, ``` `` ```) no longer draws as a code line
+  (heal's partial-closer rule, "heal, no shrink on the showcase"), so
+  TestDiffStream allows no shrink.

@@ -158,6 +158,7 @@ arm64 (M1) TestWideInvariant failure at v0.4.0 root-caused: chroma v2.27.0 250 m
 Replaces the 8-row hold (L6b's header hold kept for the header-only state only).
 - ✅ wide.go: a top-level table wider than the width is a wide block with or without WideBlocks (cut at the width when off);
   tablehold.go: held only until the delimiter row's "\n", read on the text before heal. Tests in tablehold_test.go.
+- TestTableNoShrinkTokens after the heal merge: 0 shrinks not at a table tail (was showcase 7, answer-20k 8, table-callout 1).
 - **next**: Carl review; dun note (dun-bf session's).
 - **risks**: rows with `@`/emoji shortcode, tables in lists/quotes/form bodies, glamour opts, raw glamour Renderer still wrap
   (height can change while streaming; raw glamour lost its 8-row hold); a table past 512 cells shrinks columns (wraps);
@@ -169,9 +170,11 @@ Replaces the 8-row hold (L6b's header hold kept for the header-only state only).
 inner chroma colours from the title's extension, never wrapped (… cut; WideBlocks: pane cut + note). diff.go, internal/diffview.
 - ✅ render, Theme.Diff tints, titled form (Ctx.Diff), line memo, Stream renders the tail whole (no codestream), goldens
   testdata/golden/docs/diff_* (sample testdata/directives/diff.md), TestDiff* (styles, wide, stream invariant), bench/diff_bench_test.go.
-- **next**: Carl reviews tints (default chosen, see decisions.md); diff segment in cmd/demo/showcase.md (left out: another agent edits cmd/demo).
+- ✅ diff segment in cmd/demo/showcase.md (titled Go, hunk header, `3`→`min` pair). TestDiffStream: no shrink allowance (heal's partial closer fixed).
+  `go test -short -timeout 60m ./...`: all ok (exit 0), root 754 s, vet clean.
+- **next**: Carl reviews tints (default chosen, see decisions.md).
 - **risks**: per-line lexing (block comments / multi-line strings colour as code); fences in lists/quotes still glamour; indented
-  opener not covered; partial closing fence shrink is heal's (shared with every fence).
+  opener not covered.
 - **blocking decisions**: none. Assumed: no-WideBlocks cut with "…" (brief: "never wrap"); `!` lines added (hljs); tint colours.
 - **optional extensions**: lex whole hunk sides for multi-line tokens; side-by-side view; word diff on unequal runs (LCS of lines).
 
