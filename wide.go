@@ -36,8 +36,10 @@ const wideRenderersMax = 32
 // WideBlocks turns wide blocks on: top-level code blocks and tables wider
 // than the word wrap width render at their own width and are cut at pane.
 // A pane below the word wrap width is read as that width; 0 turns wide
-// blocks off (the default). Call it before the first Render. The Stream
-// key must name pane too.
+// code blocks off (the default). Tables are wide blocks with or without
+// it: with pane 0 a wide table is cut at the word wrap width, so each row
+// is one line (Carl 2026-11-11, single-line table rows). Call it before
+// the first Render. The Stream key must name pane too.
 //
 // Not in wide blocks: code blocks and tables inside lists, quotes and form
 // bodies; titled code fences and file trees (forms: cut at the width, as
@@ -51,14 +53,15 @@ func (r *DirectiveRenderer) WideBlocks(pane int) {
 }
 
 // wideWidth returns the word wrap width block src renders at when it is a
-// wide code block or table, else 0. src is one top-level block, no
-// Sentinel; it must not hold a form or a `$$` formula (the caller checks).
+// wide code block (WideBlocks on) or a wide table, else 0. src is one
+// top-level block, no Sentinel; it must not hold a form or a `$$` formula
+// (the caller checks).
 func (r *DirectiveRenderer) wideWidth(src string) int {
-	if r.pane == 0 {
-		return 0
-	}
 	margin := 2 * r.margin()
 	if need, ok := codeNeed(src); ok {
+		if r.pane == 0 {
+			return 0
+		}
 		indent := 0
 		if m := r.style.CodeBlock.Margin; m != nil {
 			indent = int(*m)
@@ -192,18 +195,23 @@ func (r *DirectiveRenderer) cutLines(piece string) string {
 
 func (r *DirectiveRenderer) cutLine(line string) string {
 	cw := xansi.StringWidth(strings.TrimRight(xansi.Strip(line), " "))
+	// pane 0 (no WideBlocks): a wide table is cut at the word wrap width.
+	pane := r.pane
+	if pane == 0 {
+		pane = r.width
+	}
 	// glamour's lines end at the wrap width less the right margin.
 	switch fit := r.width - r.margin(); {
 	case cw <= fit:
 		return keepCells(line, fit)
-	case cw <= r.pane:
+	case cw <= pane:
 		return keepCells(line, cw)
 	}
-	room, ind := edgeNote(cw, r.pane)
+	room, ind := edgeNote(cw, pane)
 	if room == 0 {
-		return keepCells(line, r.pane)
+		return keepCells(line, pane)
 	}
-	return keepCells(line, r.pane-room) + r.theme.Muted.Render(ind)
+	return keepCells(line, pane-room) + r.theme.Muted.Render(ind)
 }
 
 // edgeNote is dun's cutRow note for a line w cells wide cut at pane: the
@@ -278,10 +286,11 @@ func oscLinkOpens(seq string) bool {
 
 // wideTable returns the wrap width and options a Stream renders tail at
 // when tail (one block, no Sentinel) is a wide table, so it can grow from
-// cached rows (tablestream) through the wide renderer. cut makes the
+// cached rows (tablestream) through the wide renderer, with or without
+// WideBlocks. cut makes the
 // renderer's piece the piece Render gives.
 func (r *DirectiveRenderer) wideTable(tail string) (t *target, opts ansi.Options, ok bool, err error) {
-	if r.pane == 0 || !strings.HasPrefix(tail, "|") || len(r.opts) > 0 {
+	if !strings.HasPrefix(tail, "|") || len(r.opts) > 0 {
 		return nil, opts, false, nil
 	}
 	if bs := blocks.Split(tail); len(bs) != 1 {

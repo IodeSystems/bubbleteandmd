@@ -263,7 +263,7 @@ func (s *Stream) render(src string, healed bool) (string, error) {
 		}
 	}
 	if tail != "" {
-		piece, err := s.tailPiece(tail, tailAt, tailAt == bs[len(bs)-1].Offset, healed)
+		piece, err := s.tailPiece(tail, src[tailAt:], tailAt, tailAt == bs[len(bs)-1].Offset, healed)
 		if err != nil {
 			return "", err
 		}
@@ -393,19 +393,20 @@ func (s *Stream) block(source string, at int, first bool) (rendered, error) {
 	return v, nil
 }
 
-// tailPiece renders the tail at offset at. last: the tail is the last block
+// tailPiece renders the tail at offset at; raw is its text before heal.
+// last: the tail is the last block
 // alone (not the last two). When it is the last block: a table renders
 // through a Table kept for its offset (exact); in Frame (healed), a code
 // fence renders in chunks (codestream: may differ in SGR bytes only, Carl
-// B1). In Frame, a table with fewer than holdRows body rows is held: one
-// placeholder line (tablehold.go). Any other tail renders whole.
+// B1). In Frame, a table header with no whole delimiter row yet is held:
+// one placeholder line (tablehold.go). Any other tail renders whole.
 //
 // With a StateRenderer, a fast path renders through a tailRenderer: when it
 // falls back to the whole render, that render is in the State, with marks.
 // A held table, a chunked fence and spliced table rows have no forms.
-func (s *Stream) tailPiece(tail string, at int, last, healed bool) (rendered, error) {
+func (s *Stream) tailPiece(tail, raw string, at int, last, healed bool) (rendered, error) {
 	first := at == 0
-	if last && healed && heldTable(tail) {
+	if last && healed && heldTable(raw) {
 		s.stats.held++
 		s.stats.lastHeld = true
 		text, err := s.holdPiece(first)

@@ -414,7 +414,7 @@ func (m *mirror) frame(t *testing.T, src string, healed bool) []mpiece {
 		}
 	}
 	if tail != "" {
-		if healed && len(bs) > 0 && tailAt == bs[len(bs)-1].Offset && heldTable(tail) {
+		if healed && len(bs) > 0 && tailAt == bs[len(bs)-1].Offset && heldTable(src[tailAt:]) {
 			pieces = append(pieces, m.held(t, tailAt == 0))
 		} else {
 			pieces = append(pieces, m.piece(t, tail, tailAt == 0))
@@ -423,20 +423,15 @@ func (m *mirror) frame(t *testing.T, src string, healed bool) []mpiece {
 	return pieces
 }
 
-// Stream.Frame draws a last-block GFM table with fewer than holdRows body
-// rows as one muted placeholder line (tablehold.go). Mirrored here: the
+// Stream.Frame draws a last-block table header with no whole delimiter row
+// yet as one muted placeholder line (tablehold.go). Mirrored here: the
 // spike is an external package and cannot call the unexported heldTable.
-const (
-	holdRows = 8
-	holdText = "table…"
-)
-
-var tableDelimLine = regexp.MustCompile(`^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$`)
+const holdText = "table…"
 
 // delimStart: a partial line that can still become a delimiter row.
 var delimStart = regexp.MustCompile(`^[ \t|:-]*$`)
 
-// heldTable mirrors tablehold.go (lone `|` header line held too).
+// heldTable mirrors tablehold.go.
 func heldTable(tail string) bool {
 	if !strings.HasPrefix(tail, "|") {
 		return false
@@ -446,18 +441,7 @@ func heldTable(tail string) bool {
 		// header row alone; a blank line after it ends the block
 		return !strings.HasSuffix(tail, "\n\n")
 	}
-	if !tableDelimLine.MatchString(lines[1]) {
-		// the delimiter row can still be typing
-		return len(lines) == 2 && !strings.HasSuffix(tail, "\n") && delimStart.MatchString(lines[1])
-	}
-	body := 0
-	for _, l := range lines[2:] {
-		if strings.TrimSpace(l) == "" {
-			break
-		}
-		body++
-	}
-	return body < holdRows
+	return len(lines) == 2 && !strings.HasSuffix(tail, "\n") && delimStart.MatchString(lines[1])
 }
 
 // held is DirectiveRenderer.placeholder: no marks (a table has none).

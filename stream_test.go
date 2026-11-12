@@ -257,7 +257,7 @@ func checkStream(t *testing.T, r Renderer, text string, prefixes []string, run, 
 			bs := blocks.Split(p)
 			isHeld := k.name == "Frame" && len(bs) > 0 && func() bool {
 				at := bs[len(bs)-1].Offset
-				return heldTable(heal.Close(p[at:])) && heal.Close(p[at:]) == healed[at:]
+				return heldTable(p[at:]) && heal.Close(p[at:]) == healed[at:]
 			}()
 			if s.stats.lastHeld != isHeld {
 				t.Fatalf("prefix len %d: %s held=%v, want %v: %q", len(p), k.name, s.stats.lastHeld, isHeld, tailOf(p))
