@@ -158,9 +158,11 @@ arm64 (M1) TestWideInvariant failure at v0.4.0 root-caused: chroma v2.27.0 250 m
 `cmd/demo` (`make demo` → ./bin/demo): split screen, Doc vs naive whole-reply glamour, same token schedule (corpus mulberry32,
 seed 42, rune-sized tokens), renders off the UI goroutine (one in flight per pane; Doc keys and rebuilds wait for it).
 Test: headless model (TestModelHeadless: ticks, keys, mid-stream resize; left view == fresh Doc Final view). tmux smoke ok.
-- **risks**: the Doc's own height shrinks 1 line 7× on showcase.md (w79 dark, seed 42): partial closing fence (`` `` ``)
-  drawn as a code line (list item, tree, DETAILS body), `> ` before `[!` drawn as a blank line, `*Day ` in a STEPS item
-  drawn on its own line until `1` arrives. Library, not demo; open to Carl.
+- ✅ no shrink on showcase.md (heal rules not in llx; decisions.md "heal, no shrink on the showcase"): was 7 shrinks
+  (token, seed 42), 10 more at rune prefixes, 4 in corpus form docs; now 0 (TestShowcaseNoShrink, TestNoShrinkRules).
+  **risks**: a lone `2`, `<abc` (no `>`), `` `` `` line or trailing `*` shows one character late; other docs/widths
+  may still shrink (only showcase + corpus form docs checked); quoted fences now get a heal closer `> ````.
+  `go test -short -timeout 60m ./...`: all ok (exit 0), root 1456 s, vet clean.
 - **optional extensions**: sparkline of render ms; a key to switch which pane takes the keys.
 - Assumed: "dropped" = ticks with new tokens a pane never drew; space pauses (toggle is enter only in the demo's KeyMap).
 

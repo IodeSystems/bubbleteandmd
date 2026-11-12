@@ -318,3 +318,46 @@
   panic values), TestRenderLexerPanic (registered panicking lexers, top
   level and in a callout body; Render, Frame, Final give "" and the error;
   fails with a crash without the recover, checked).
+- 2026-11-11 (heal, no shrink on the showcase): the demo showed a Doc's
+  line count drop by 1 seven times while cmd/demo/showcase.md streamed
+  (w79 dark, seed 42); rune prefixes found 10 more, the corpus 4 more.
+  Each fix hides or completes text that drew taller than what it
+  becomes a character later. Frame only (heal); Final unchanged. Each
+  is a deviation from llx's heal.ts:
+  - Partial closer: inside an open fence, an unterminated last line of
+    fewer fence characters than the opener (or spaces only), at most 3
+    spaces past the opener's indent, is dropped before the closer is
+    added. It drew as a code line until the closer completed (list-item
+    fence, tree fence).
+  - Fence in a blockquote: heal reads `> ```` fences (any `>` depth);
+    a line with fewer `>` ends the quote and the fence. Closed with the
+    opener's quote prefix; no inline fixes in it. The TS reads no fence
+    there and gave `> ```text\n> line one\n` a "`" line (DETAILS body).
+    The partial-closer rule applies after the prefix, so `>` alone in it
+    is dropped too. OpenFenceBody now also returns a quoted body
+    (prefixes kept); it has no caller outside heal.
+  - Bare quote line: `>` or `> ` as the last line is hidden, as llx
+    hides `> [` / `> [!`: same intent (a callout marker still being
+    typed). It drew as an empty quote line that `> [` then hid.
+  - Emphasis closer before trailing white space (`*Day ` → `*Day*`,
+    also `**`, `~~`, `_`): a closer after a space does not close, so
+    `*Day *` drew as text on its own line in a STEPS item, then joined
+    the title line as a subtitle.
+  - Half a double closer (`**3×*` → `**3×**`, was `**3×***`).
+  - A lone `*` or `_` ending the text after white space or at its start
+    is hidden until the next character (STEPS `   *`, STATS `- *`). The
+    TS test "a stray *" kept it; the port's test now uses "a stray *
+    here" for that and checks the hide.
+  - Inline fixes start after the last closed fence when that is after
+    the last blank line: an odd backtick count in a code block put a "`"
+    line under it (frame `…}\n```\n` was 2 lines taller than the next).
+  - An unterminated last line that is only the start of a fence opener
+    (1-2 backticks or tildes), an ordered list marker (digits) or an
+    HTML tag (`<`, `</di`, `<deta`) is hidden: as a paragraph it drew
+    taller than the empty fence, list item or HTML block it becomes.
+    Cost: such a line shows a character late (a paragraph that is only
+    `2`, or starts `<abc` with no `>`, until its next character or `\n`).
+  Test: TestShowcaseNoShrink (Doc, wide blocks, dark/notty, w40/w79):
+  token prefixes in -short; every rune prefix and the corpus documents
+  with forms (token) without -short. No exceptions listed: 0 shrinks.
+  Per-rule cases: heal TestNoShrinkRules.
