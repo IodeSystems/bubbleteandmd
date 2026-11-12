@@ -1,6 +1,7 @@
 package bubbleteandmd
 
 import (
+	"fmt"
 	"io"
 	"math"
 	"regexp"
@@ -148,7 +149,23 @@ func (c *cachedFormatter) table(style *chroma.Style) map[chroma.TokenType]string
 }
 
 // Format is chroma's indexedTTYFormatter.Format with the table cached.
-func (c *cachedFormatter) Format(w io.Writer, style *chroma.Style, it chroma.Iterator) error {
+//
+// A panic while it runs (in the iterator, that is the lexer, or here) is
+// returned as an error, as chroma's stock formatters do (FormatterFunc,
+// RecoveringFormatter); chroma v3 panics on a regexp2 match timeout. glamour
+// then fails the whole Render ("glamour: error highlighting code"), and
+// DirectiveRenderer.Render and Stream return "" with the error: no partial
+// output. Bytes already written to w stay in glamour's buffer, unused.
+func (c *cachedFormatter) Format(w io.Writer, style *chroma.Style, it chroma.Iterator) (err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(error); ok {
+				err = fmt.Errorf("bubbleteandmd: chroma panic: %w", e)
+			} else {
+				err = fmt.Errorf("bubbleteandmd: chroma panic: %v", p)
+			}
+		}
+	}()
 	theme := c.table(style)
 	for token := it(); token != chroma.EOF; token = it() {
 		clr, ok := theme[token.Type]

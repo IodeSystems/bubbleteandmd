@@ -2,6 +2,7 @@ package bubbleteandmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -449,6 +450,74 @@ func TestNewRendererUsesCachedFormatter(t *testing.T) {
 		}
 		if a != b || !strings.Contains(b, "\x1b[") {
 			t.Errorf("differs or no colour\nstock  %q\ncached %q", a, b)
+		}
+	}
+}
+
+// panicLexer is chroma's plaintext lexer under its own name, with an
+// iterator that panics with v at the first token.
+type panicLexer struct {
+	chroma.Lexer
+	name string
+	v    any
+}
+
+func (l panicLexer) Config() *chroma.Config {
+	return &chroma.Config{Name: l.name, Aliases: []string{l.name}}
+}
+
+func (l panicLexer) Tokenise(*chroma.TokeniseOptions, string) (chroma.Iterator, error) {
+	return func() chroma.Token { panic(l.v) }, nil
+}
+
+var errLexPanic = errors.New("lexer panic")
+
+// Registered before any test runs: chroma's lexer registry has no lock.
+func init() {
+	lexers.Register(panicLexer{lexers.Get("text"), "bubbleteandmd-panic-err", errLexPanic})
+	lexers.Register(panicLexer{lexers.Get("text"), "bubbleteandmd-panic-str", "boom"})
+}
+
+// TestCachedFormatterPanic: a panic in the iterator is an error, not a
+// crash (error values wrapped, other values formatted).
+func TestCachedFormatterPanic(t *testing.T) {
+	f := newCachedFormatter()
+	st := chromastyles.Get("monokai")
+	err := f.Format(io.Discard, st, func() chroma.Token { panic(errLexPanic) })
+	if !errors.Is(err, errLexPanic) {
+		t.Errorf("error panic: got %v", err)
+	}
+	err = f.Format(io.Discard, st, func() chroma.Token { panic("boom") })
+	if err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Errorf("string panic: got %v", err)
+	}
+}
+
+// TestRenderLexerPanic: a lexer that panics in a code block (top level, in
+// a callout body) makes Render and Stream return "" and the error.
+func TestRenderLexerPanic(t *testing.T) {
+	r, err := NewRenderer(*styles.DefaultStyles["dark"], 80)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, lang := range []string{"bubbleteandmd-panic-err", "bubbleteandmd-panic-str"} {
+		for _, md := range []string{
+			"# t\n\nprose\n\n```" + lang + "\nx := 1\n```\n",
+			"> [!NOTE]\n> ```" + lang + "\n> x := 1\n> ```\n",
+		} {
+			out, err := r.Render(md)
+			if err == nil || out != "" {
+				t.Errorf("Render %q: out %q err %v", md, out, err)
+			}
+			if lang == "bubbleteandmd-panic-err" && !errors.Is(err, errLexPanic) {
+				t.Errorf("Render %q: error %v does not wrap the panic", md, err)
+			}
+			s := NewStream(r, "dark/80", NewCache(16))
+			for _, f := range []func(string) (string, error){s.Frame, s.Final} {
+				if out, err := f(md); err == nil || out != "" {
+					t.Errorf("Stream %q: out %q err %v", md, out, err)
+				}
+			}
 		}
 	}
 }
