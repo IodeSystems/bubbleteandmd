@@ -22,9 +22,10 @@ var (
 	displayFormula = regexp.MustCompile(`\$\$[\s\S]*?\$\$`)
 	tableRowStart  = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}\|`)
 	tableDelimCell = regexp.MustCompile(`^:?-{3,}:?$`)
-	calloutPartial = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?\[(?:!\w*)?$`)
+	calloutPartial = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?(?:\[(?:!\w*)?)?$`)
 	quoteLine      = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?([^\r\n\x{2028}\x{2029}]*)$`)
 	markerHead     = regexp.MustCompile(`^\[!([A-Za-z]+)\]`)
+	partialOpener  = regexp.MustCompile("^(?: {0,3}>[ \t]?)* {0,3}(?:`{1,2}|~{1,2}|[0-9]{1,9}|</?[A-Za-z][A-Za-z0-9-]*|</?)$")
 )
 
 // containerKinds are llx-markdown's dialect.ts CONTAINER_KINDS.
@@ -43,11 +44,22 @@ func Close(text string) string {
 	// opener is code. The closer takes the opener's indent: in a list item, a closer at column 0
 	// is outside the item, so it ends the item and opens a new empty fence, one row more than
 	// the fence's own closing line draws. The TS closes at column 0.
-	if f := openFence(text); f != nil {
-		if strings.HasSuffix(text, "\n") {
-			return text + f.indent + f.marker
+	// A fence inside a blockquote closes with the opener's quote prefix; the TS reads no fence
+	// there and heals its body as prose (a lone "`" line after "> ```text\n> code\n").
+	// The unterminated last line, when it can still become the closer (`  ```, `>`), is the closer
+	// arriving: drawn as a code line, it would vanish when the closer completes. It is dropped.
+	// Not in the TS.
+	f, fenceEnd := scanFences(text)
+	if f != nil {
+		closer := f.quote + f.indent + f.marker
+		nl := strings.LastIndexByte(text, '\n')
+		if nl+1 >= f.bodyStart && f.partialCloser(text[nl+1:]) {
+			text = text[:nl+1]
 		}
-		return text + "\n" + f.indent + f.marker
+		if strings.HasSuffix(text, "\n") {
+			return text + closer
+		}
+		return text + "\n" + closer
 	}
 
 	// A half-typed table row, a callout marker still being typed and a form marker with no
@@ -61,13 +73,19 @@ func Close(text string) string {
 	if d := dropTrailingBareFormMarker(text); d != text {
 		return d
 	}
-
-	// Inline constructs cannot span a blank line, so only the last paragraph can dangle.
-	splitAt := strings.LastIndex(text, "\n\n")
-	head, tail := "", text
-	if splitAt != -1 {
-		head, tail = text[:splitAt+2], text[splitAt+2:]
+	if d := dropTrailingPartialOpener(text); d != text {
+		return d
 	}
+
+	// Inline constructs cannot span a blank line, so only the last paragraph can dangle. Nor can
+	// they start in a fence: the tail starts after the last closed fence when that is later (not
+	// in the TS, which counted a code block's backticks and drew a "`" line under it).
+	at := strings.LastIndex(text, "\n\n") + 2
+	if at < 2 {
+		at = 0
+	}
+	at = max(at, fenceEnd)
+	head, tail := text[:at], text[at:]
 	if tail == "" {
 		return text
 	}
@@ -77,6 +95,7 @@ func Close(text string) string {
 	tail = withholdPartialMath(tail)
 	tail = closeTrailingLink(tail)
 	tail = balanceInlineCode(tail)
+	tail = hideTrailingLoneDelimiter(tail)
 	tail = balanceDoubleDelimiter(tail, "**")
 	tail = balanceDoubleDelimiter(tail, "~~")
 	tail = balanceSingleEmphasis(tail, '*')
@@ -169,7 +188,9 @@ func balanceInlineCode(tail string) string {
 }
 
 // balanceDoubleDelimiter balances `**` or `~~`, ignoring code spans and formulas. A bare
-// trailing opener is stripped; one with content after it gets closed.
+// trailing opener is stripped; one with content after it gets closed, before any trailing white
+// space: a closer after a space does not close (`**bold **` draws its stars), and the frame would
+// change when the next word arrives. The TS closes after the space.
 func balanceDoubleDelimiter(tail, delim string) string {
 	masked := maskInert(tail)
 	count := 0
@@ -187,13 +208,43 @@ func balanceDoubleDelimiter(tail, delim string) string {
 	if strings.HasSuffix(tail, delim) {
 		return tail[:len(tail)-len(delim)]
 	}
-	return tail + delim
+	// Half the closer typed (`**bold*`): complete it, not add a whole one (`**bold***`). Not in
+	// the TS.
+	return trimRightJS(strings.TrimSuffix(tail, delim[:1])) + delim
+}
+
+// hideTrailingLoneDelimiter hides a `*` or `_` that ends the tail after white space or at its
+// start: the character after it, which says whether it opens emphasis, is not written yet. Drawn
+// as a literal, it would join the line above as emphasis a token later (`   *` under a STEPS
+// title). Not in the TS, which keeps it.
+func hideTrailingLoneDelimiter(tail string) string {
+	n := len(tail)
+	if n == 0 || tail[n-1] != '*' && tail[n-1] != '_' {
+		return tail
+	}
+	if n > 1 && (tail[n-2] == '*' || tail[n-2] == '_' || !isJSSpace(rune(tail[n-2]))) {
+		return tail
+	}
+	return tail[:n-1]
+}
+
+// dropTrailingPartialOpener hides an unterminated last line that is only the start of a fence
+// opener (two backticks, `~`) or of an ordered list marker (`2`), after any quote prefixes and at
+// most three spaces: as a paragraph it drew taller than the empty fence or list item it becomes.
+// Not in the TS.
+func dropTrailingPartialOpener(text string) string {
+	nl := strings.LastIndexByte(text, '\n')
+	if !partialOpener.MatchString(text[nl+1:]) {
+		return text
+	}
+	return text[:nl+1]
 }
 
 // balanceSingleEmphasis balances `*` or `_`, counting only emphasis-capable lone delimiters:
 // runs of two or more belong to `**`/`__`; code and formulas are masked; `*` counts only when it
 // touches a word character; `_` only when the word character is on one side (no intraword
-// emphasis). An odd count appends one closer, or strips a bare trailing opener.
+// emphasis). An odd count appends one closer (before trailing white space, as
+// balanceDoubleDelimiter; not in the TS), or strips a bare trailing opener.
 func balanceSingleEmphasis(tail string, char byte) string {
 	masked := maskInert(tail)
 	active := 0
@@ -221,7 +272,7 @@ func balanceSingleEmphasis(tail string, char byte) string {
 	if tail[len(tail)-1] == char {
 		return tail[:len(tail)-1]
 	}
-	return tail + string(char)
+	return trimRightJS(tail) + string(char)
 }
 
 // dropTrailingPartialTableRow hides only a partial row of an established GFM table. A line
@@ -267,7 +318,8 @@ func isDelimiterRow(cells string) bool {
 }
 
 // dropTrailingPartialCalloutMarker hides a quote line still typing its callout marker (`> [`,
-// `> [!`, `> [!WARN`) until the `]` arrives. A complete marker stays.
+// `> [!`, `> [!WARN`) until the `]` arrives. A complete marker stays. A bare `>` or `> ` last line
+// is hidden as well (not in the TS): drawn as an empty quote line, it vanished when `[` arrived.
 func dropTrailingPartialCalloutMarker(text string) string {
 	nl := strings.LastIndex(text, "\n")
 	if !calloutPartial.MatchString(text[nl+1:]) {
