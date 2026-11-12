@@ -20,6 +20,9 @@ func TestHeldTable(t *testing.T) {
 		{hdr, true},
 		{hdr + strings.Repeat(row, holdRows-1), true},
 		{hdr + strings.Repeat(row, holdRows), false},
+		{hdr + strings.Repeat("x | y\n", holdRows-1), true},
+		{hdr + strings.Repeat("x | y\n", holdRows), false},        // no leading pipe: still body rows
+		{hdr + "x | y\n\n" + strings.Repeat(row, holdRows), true}, // rows after a blank line are not the table's
 		{"| not a table\nprose\n", false},
 		{"prose\n", false},
 	} {
@@ -125,5 +128,42 @@ func TestShortTableAppears(t *testing.T) {
 	out, err = s.Final(doc)
 	if err != nil || s.stats.lastHeld || strings.Contains(xansi.Strip(out), holdText) || !strings.Contains(xansi.Strip(out), "a") {
 		t.Fatalf("Final: %v %q", err, xansi.Strip(out))
+	}
+}
+
+// TestTableHoldNoPipeRows: body rows written without a leading pipe count,
+// so a long table shows while it streams, not only at Final (audit
+// 2026-11-11).
+func TestTableHoldNoPipeRows(t *testing.T) {
+	src := "| a | b |\n|---|---|\n" + strings.Repeat("x | y\n", 12)
+	r := newTestRenderer(t, "notty", 50)
+	s := NewStream(r, "k", nil)
+	out, err := s.Frame(src)
+	if err != nil || s.stats.lastHeld || strings.Contains(xansi.Strip(out), holdText) {
+		t.Fatalf("12-row table held: %v %q", err, xansi.Strip(out))
+	}
+	fin, err := s.Final(src)
+	if err != nil || out != fin {
+		t.Fatalf("Frame != Final: %v\n%s", err, firstDiff(fin, out))
+	}
+}
+
+// TestTableHoldHeaderLine: a lone header line draws as a paragraph, then as
+// the one-line placeholder once the delimiter row arrives. A header that
+// wraps makes that frame shorter than the one before (logged; the hold is
+// Carl's design, 2026-11-11).
+func TestTableHoldHeaderLine(t *testing.T) {
+	for _, hdr := range []string{"| a | b |", "| " + strings.Repeat("long header words ", 4) + "| b |"} {
+		r := newTestRenderer(t, "notty", 50)
+		s := NewStream(r, "k", nil)
+		p, err := s.Frame("Intro.\n\n" + hdr + "\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		h, err := s.Frame("Intro.\n\n" + hdr + "\n|---|---|\n")
+		if err != nil || !s.stats.lastHeld {
+			t.Fatalf("not held: %v", err)
+		}
+		t.Logf("header %d cells: paragraph frame %d lines, held frame %d lines", len(hdr), lineCount(p), lineCount(h))
 	}
 }

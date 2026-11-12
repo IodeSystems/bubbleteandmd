@@ -21,6 +21,8 @@ var tableDelimLine = regexp.MustCompile(`^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*
 // heldTable reports whether tail (healed text of the last block) is a GFM
 // table with a header row, a delimiter row and fewer than holdRows body
 // rows. Heal has hidden a partial last row, so every counted row is whole.
+// A body row is any line after the delimiter row up to the first blank
+// line, as the table parser reads it: `x | y` with no leading pipe counts.
 func heldTable(tail string) bool {
 	if !strings.HasPrefix(tail, "|") {
 		return false
@@ -31,9 +33,10 @@ func heldTable(tail string) bool {
 	}
 	body := 0
 	for _, l := range lines[2:] {
-		if strings.HasPrefix(l, "|") {
-			body++
+		if strings.TrimSpace(l) == "" {
+			break
 		}
+		body++
 	}
 	return body < holdRows
 }
