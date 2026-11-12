@@ -178,6 +178,16 @@ inner chroma colours from the title's extension, never wrapped (… cut; WideBlo
 - **blocking decisions**: none. Assumed: no-WideBlocks cut with "…" (brief: "never wrap"); `!` lines added (hljs); tint colours.
 - **optional extensions**: lex whole hunk sides for multi-line tokens; side-by-side view; word diff on unequal runs (LCS of lines).
 
+### ◐ Nesting caps (flowdown v0.5.0 0d7c300; decisions.md "Nesting caps")
+Measured first: deep `>`/lists hang glamour (`>`×100 w80 > 120 s), nested emphasis ×40000 = fatal stack overflow.
+- ✅ internal/nest: goldmark as glamour builds it, list/blockquote parsers refuse past 16 blocks, spans past 100 flattened to text.
+  Renderer, wide, directive parse, tablestream all on nest.New. Tests: internal/nest, nest_test.go (budget 120 s each).
+- **next**: Carl review of the block cap (16, not flowdown's 100).
+- **risks**: glamour options given → glamour's own renderer, uncapped; raw *glamour.TermRenderer hosts uncapped; at the cap
+  glamour still costs ~depth² per byte (100 KB in 16 quotes 5.8 s; `>`×10000 streamed 54 s).
+- **blocking decisions**: Carl: block cap 16 vs 8 (8 cuts the deep case ~6×) vs flowdown's 100 (glamour hangs).
+  Assumed: depth counts blockquotes + list items; inline flatten keeps leaves (drops link URLs past the cap).
+
 ### ✅ Demo (Carl approved 2026-11-11; show-the-difference pass 2026-11-11)
 `cmd/demo` (`make demo` → ./bin/demo): split screen, Doc vs naive whole-reply glamour, same token schedule (corpus mulberry32,
 seed 42, rune-sized tokens), renders off the UI goroutine (one in flight per pane; Doc keys and rebuilds wait for it).
