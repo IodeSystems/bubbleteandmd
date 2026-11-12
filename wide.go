@@ -135,7 +135,7 @@ func (r *DirectiveRenderer) wideTarget(w int) (*target, error) {
 		return t, nil
 	}
 	all := append([]glamour.TermRendererOption{glamour.WithStyles(r.style), glamour.WithWordWrap(w), glamour.WithChromaFormatter(chromaFormatter)}, r.opts...)
-	g, err := glamour.NewTermRenderer(all...)
+	g, err := r.term(r.style, w, all)
 	if err != nil {
 		return nil, err
 	}

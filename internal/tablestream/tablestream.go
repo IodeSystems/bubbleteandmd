@@ -35,11 +35,10 @@ import (
 	"charm.land/glamour/v2/ansi"
 	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi"
+	"github.com/iodesystems/bubbleteandmd/internal/nest"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	astext "github.com/yuin/goldmark/extension/ast"
-	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 )
 
@@ -103,7 +102,7 @@ type Table struct {
 // table options; WordWrap is read from the output).
 func New(opts ansi.Options) *Table {
 	t := &Table{opts: opts, tr: ansi.NewRenderer(opts)}
-	t.md = goldmark.New(goldmark.WithExtensions(extension.GFM, extension.DefinitionList), goldmark.WithParserOptions(parser.WithAutoHeadingID()))
+	t.md = nest.New() // as the Renderer parses (internal/nest)
 	if opts.InlineTableLinks || (opts.TableWrap != nil && !*opts.TableWrap) {
 		t.off = true
 	}
