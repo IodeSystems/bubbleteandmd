@@ -206,22 +206,17 @@ func TestDiffStream(t *testing.T) {
 							}
 						}
 						s := NewStream(newWideRenderer(t, style, w, pane), "k", NewCache(64))
-						last, lastP := 0, ""
+						last := 0
 						for _, p := range prefixes {
 							out, err := s.Frame(p)
 							if err != nil {
 								t.Fatal(err)
 							}
 							fr := rows(out)
-							// Known, not diff's: heal draws a partial closing
-							// fence ("`", "``") as one more code line, for every
-							// fence (internal/heal; plan "Demo" risks). Allowed:
-							// that one line going when the closer completes.
-							partialCloser := len(lastP) > closeAt && len(lastP) < closeAt+3 && len(fr) == last-1
-							if len(fr) < last && !partialCloser {
+							if len(fr) < last {
 								t.Fatalf("prefix len %d: frame shrank %d → %d lines", len(p), last, len(fr))
 							}
-							last, lastP = len(fr), p
+							last = len(fr)
 							if len(p) <= bodyAt || len(p) >= closeAt {
 								continue
 							}
