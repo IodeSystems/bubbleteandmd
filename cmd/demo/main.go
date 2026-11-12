@@ -1,6 +1,7 @@
 // Command demo streams one Markdown reply into two panes side by side:
 // bubbleteandmd on the left, glamour rendering the whole reply per token on
-// the right, with render times per pane. Not part of the library API.
+// the right, with render cost, lag, bounce and safety numbers per pane.
+// Not part of the library API.
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/glamour/v2/styles"
@@ -20,13 +22,18 @@ var showcase string
 func main() {
 	style := flag.String("style", "dark", "dark, light or notty")
 	width := flag.Int("width", 0, "width of each pane (0: half the terminal)")
-	rate := flag.Float64("rate", 60, "tokens per second")
-	file := flag.String("file", "", "stream this Markdown file in place of the showcase")
+	rate := flag.Float64("rate", 150, "tokens per second")
+	name := flag.String("scenario", "all", "reply to stream: "+strings.Join(scenarioNames, ", "))
+	file := flag.String("file", "", "stream this Markdown file in place of a scenario")
 	wide := flag.Bool("wide", true, "left pane: cut wide code blocks and tables at the pane (WideBlocks)")
 	seed := flag.Uint("seed", 42, "token size seed")
 	flag.Parse()
 
-	cfg := config{styleName: *style, width: *width, rate: max(*rate, 1), wide: *wide, src: showcase, seed: uint32(*seed)}
+	scen, err := scenarioByName(*name)
+	if err != nil {
+		fail(err)
+	}
+	cfg := config{styleName: *style, width: *width, rate: max(*rate, 1), wide: *wide, scen: scen, seed: uint32(*seed)}
 	switch *style {
 	case "dark":
 		cfg.style = styles.DarkStyleConfig
@@ -42,7 +49,7 @@ func main() {
 		if err != nil {
 			fail(err)
 		}
-		cfg.src = string(b)
+		cfg.scen = scenario{name: "file", about: *file, src: string(b)}
 	}
 
 	// chroma gives each lexer rule a 250 ms wall-clock match timeout. The

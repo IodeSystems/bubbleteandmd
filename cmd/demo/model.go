@@ -1,24 +1,23 @@
 package main
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/glamour/v2/ansi"
-	"charm.land/lipgloss/v2"
-	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/iodesystems/bubbleteandmd"
 )
 
 const (
 	left  = 0
 	right = 1
-	// chrome: a title line, two status lines per pane and the help line.
-	chrome = 4
+	// chrome: the header, per pane a title and three status lines, and
+	// two help lines.
+	chrome = 7
 	// tickEvery is how often the stream releases tokens.
 	tickEvery = 16 * time.Millisecond
+	// flashFor is how long a pane title shows a shrink.
+	flashFor = 800 * time.Millisecond
 )
 
 type config struct {
@@ -27,7 +26,7 @@ type config struct {
 	width     int // per pane; 0: half the terminal
 	rate      float64
 	wide      bool
-	src       string
+	scen      scenario
 	seed      uint32
 }
 
@@ -42,12 +41,16 @@ type renderedMsg struct {
 	lines          int
 	err            error
 	took           time.Duration
+	end            time.Time // m.clock when the render returned
+	unsafe         int       // see stats.unsafe
 }
 
 type pane struct {
 	title string
 	eng   engine
 	busy  bool // a render is in flight: eng must not be touched
+	// busyAt: when the render in flight started.
+	busyAt time.Time
 	// rebuild: a new engine waits for the render in flight; keep: copy the
 	// Doc State into it (a resize, not a restart).
 	rebuild, keep bool
@@ -63,31 +66,42 @@ type pane struct {
 
 type model struct {
 	cfg    config
+	scen   scenario
 	ends   []int
-	pos    int     // tokens released
-	step   int     // ticks that released tokens (a frame a pane can draw)
-	acc    float64 // part of a token released
+	first  int         // tokens on the page before the stream (thread)
+	relAt  []time.Time // when each token was released
+	pos    int         // tokens released
+	step   int         // ticks that released tokens (a frame a pane can draw)
+	acc    float64     // part of a token released
 	rate   float64
 	paused bool
-	last   time.Time
-	w, h   int // terminal
-	pw, ph int // pane width and body height
-	panes  [2]*pane
-	cache  *bubbleteandmd.Cache
-	km     bubbleteandmd.KeyMap
-	keys   []tea.KeyPressMsg // for the Doc, held while it renders
+	// frozen: the stream holds (as paused) and the header shows the source
+	// tail; n releases one token.
+	frozen bool
+	// began: the first tick of the stream; ended: the last token's release.
+	began, ended time.Time
+	// summary: the summary screen is up; summed: it came up on its own once.
+	summary, summed bool
+	last            time.Time
+	w, h            int // terminal
+	pw, ph          int // pane width and body height
+	panes           [2]*pane
+	cache           *bubbleteandmd.Cache
+	km              bubbleteandmd.KeyMap
+	keys            []tea.KeyPressMsg // for the Doc, held while it renders
 	// focused: Focus has been called (the first tab).
 	focused bool
 	// tick schedules the next tick (tests: nil, they send ticks).
 	tick func() tea.Cmd
+	// clock is the time (tests: the last tick's).
+	clock func() time.Time
 }
 
 func newModel(cfg config) *model {
 	km := bubbleteandmd.DefaultKeyMap()
 	km[bubbleteandmd.ActionToggle] = []string{"enter"} // space pauses the stream
-	return &model{
+	m := &model{
 		cfg:   cfg,
-		ends:  tokens(cfg.src, cfg.seed),
 		rate:  cfg.rate,
 		cache: bubbleteandmd.NewCache(512),
 		km:    km,
@@ -98,7 +112,24 @@ func newModel(cfg config) *model {
 		tick: func() tea.Cmd {
 			return tea.Tick(tickEvery, func(t time.Time) tea.Msg { return tickMsg(t) })
 		},
+		clock: time.Now,
 	}
+	m.load(cfg.scen)
+	m.restart()
+	return m
+}
+
+// load sets the reply to stream; restart starts it.
+func (m *model) load(s scenario) {
+	m.scen = s
+	m.ends, m.first = nil, 0
+	if s.start > 0 {
+		m.ends, m.first = []int{s.start}, 1
+	}
+	for _, e := range tokens(s.src[s.start:], m.cfg.seed) {
+		m.ends = append(m.ends, s.start+e)
+	}
+	m.relAt = make([]time.Time, len(m.ends))
 }
 
 func (m *model) Init() tea.Cmd { return m.tick() }
@@ -139,7 +170,9 @@ func (m *model) requestBuild(i int, keep bool) {
 }
 
 func (m *model) restart() {
-	m.pos, m.step, m.acc, m.focused, m.keys = 0, 0, 0, false, nil
+	m.pos, m.step, m.acc, m.focused, m.keys = m.first, 0, 0, false, nil
+	m.began, m.ended, m.summary, m.summed = time.Time{}, time.Time{}, false, false
+	clear(m.relAt)
 	for i, p := range m.panes {
 		p.gen++
 		p.shown, p.shownStep, p.final, p.view, p.st = 0, 0, false, "", stats{}
@@ -148,6 +181,24 @@ func (m *model) restart() {
 		}
 	}
 }
+
+// release adds n tokens at time t.
+func (m *model) release(n int, t time.Time) {
+	n = min(n, len(m.ends)-m.pos)
+	if n <= 0 {
+		return
+	}
+	for i := m.pos; i < m.pos+n; i++ {
+		m.relAt[i] = t
+	}
+	m.pos += n
+	m.step++
+	if m.pos == len(m.ends) {
+		m.ended = t
+	}
+}
+
+func (m *model) halted() bool { return m.paused || m.frozen }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -167,14 +218,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.kick()
 	case tickMsg:
 		t := time.Time(msg)
-		if !m.last.IsZero() && !m.paused && m.pos < len(m.ends) {
+		if m.began.IsZero() {
+			m.began = t
+			for i := range m.pos {
+				m.relAt[i] = t // thread: the page before the stream
+			}
+		}
+		if !m.last.IsZero() && !m.halted() && m.pos < len(m.ends) {
 			m.acc += m.rate * t.Sub(m.last).Seconds()
 			n := int(m.acc)
 			m.acc -= float64(n)
-			if n > 0 {
-				m.pos = min(m.pos+n, len(m.ends))
-				m.step++
-			}
+			m.release(n, t)
 		}
 		m.last = t
 		return m, tea.Batch(m.kick(), m.tick())
@@ -194,6 +248,11 @@ func (m *model) done(msg renderedMsg) {
 		s := &p.st
 		if msg.tok > p.shown && msg.lines < s.lines {
 			s.shrank++
+			s.cut = s.lines - msg.lines
+			s.flash = msg.end.Add(flashFor)
+		}
+		if msg.tok > p.shown && !m.relAt[p.shown].IsZero() {
+			s.age = max(s.age, msg.end.Sub(m.relAt[p.shown]))
 		}
 		if msg.step > p.shownStep+1 {
 			s.dropped += msg.step - p.shownStep - 1
@@ -203,7 +262,21 @@ func (m *model) done(msg renderedMsg) {
 		s.last = msg.took
 		s.total += msg.took
 		s.max = max(s.max, msg.took)
+		s.unsafe = msg.unsafe
+		if b := min(msg.tok*buckets/max(len(m.ends), 1), buckets-1); msg.took > s.byPos[b] {
+			s.byPos[b] = msg.took
+		}
+		s.recent = append(s.recent, span{msg.end.Add(-msg.took), msg.end})
+		for len(s.recent) > 0 && s.recent[0].to.Before(msg.end.Add(-busyWindow)) {
+			s.recent = s.recent[1:]
+		}
+		if msg.final && !p.final {
+			s.finalAt = msg.end
+		}
 		p.shown, p.shownStep, p.final, p.view, p.err = msg.tok, msg.step, msg.final, msg.view, msg.err
+		if !m.summed && m.panes[left].final && m.panes[right].final {
+			m.summary, m.summed = true, true
+		}
 	}
 	if p.rebuild {
 		m.build(msg.pane, p.keep)
@@ -228,16 +301,26 @@ func (m *model) kick() tea.Cmd {
 		if p.busy || p.eng == nil || !(p.dirty || p.shown < m.pos || end && !p.final) {
 			continue
 		}
-		p.busy, p.dirty = true, false
-		tok, step, gen, eng := m.pos, m.step, p.gen, p.eng
+		p.busy, p.dirty, p.busyAt = true, false, m.clock()
+		tok, step, gen, eng, clock := m.pos, m.step, p.gen, p.eng, m.clock
 		src := ""
 		if tok > 0 {
-			src = m.cfg.src[:m.ends[tok-1]]
+			src = m.scen.src[:m.ends[tok-1]]
 		}
 		cmds = append(cmds, func() tea.Msg {
+			// Not timed: the count of unsafe bytes, and the pictures that
+			// keep the naive pane from sending controls to this terminal.
+			var unsafe int
+			if i == left {
+				unsafe = len(src) - len(bubbleteandmd.Sanitize(src))
+			} else {
+				src, unsafe = visible(src)
+			}
 			t0 := time.Now()
 			view, lines, err := eng.render(src, end)
-			return renderedMsg{pane: i, gen: gen, tok: tok, step: step, final: end, view: view, lines: lines, err: err, took: time.Since(t0)}
+			took := time.Since(t0)
+			return renderedMsg{pane: i, gen: gen, tok: tok, step: step, final: end, view: view, lines: lines,
+				err: err, took: took, end: clock(), unsafe: unsafe}
 		})
 	}
 	return tea.Batch(cmds...)
@@ -250,6 +333,20 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 	case "space":
 		m.paused = !m.paused
 		return nil
+	case "p":
+		m.frozen = !m.frozen
+		return nil
+	case "n":
+		if m.halted() {
+			m.release(1, m.clock())
+		}
+		return m.kick()
+	case "s":
+		m.summary = !m.summary
+		return nil
+	case "c":
+		m.next(1)
+		return m.kick()
 	case "r":
 		m.restart()
 		return m.kick()
@@ -260,12 +357,32 @@ func (m *model) key(k tea.KeyPressMsg) tea.Cmd {
 		m.rate = max(m.rate/1.5, 1)
 		return nil
 	}
+	if m.summary {
+		return nil
+	}
 	if p := m.panes[left]; p.busy || p.rebuild {
 		m.keys = append(m.keys, k)
 		return nil
 	}
 	m.docKey(k)
 	return m.kick()
+}
+
+// next switches to the scenario d steps on in scenarioNames and starts it.
+func (m *model) next(d int) {
+	at := 0
+	for i, n := range scenarioNames {
+		if n == m.scen.name {
+			at = i
+		}
+	}
+	name := scenarioNames[(at+d+len(scenarioNames))%len(scenarioNames)]
+	s, err := scenarioByName(name)
+	if err != nil {
+		return
+	}
+	m.load(s)
+	m.restart()
 }
 
 // docKey gives k to the Doc; the left pane is idle.
@@ -295,71 +412,4 @@ func (m *model) docKey(k tea.KeyPressMsg) {
 		// does a blur (tab past the last form, esc), which is not consumed
 		p.dirty = true
 	}
-}
-
-var (
-	titleStyle = lipgloss.NewStyle().Bold(true).Reverse(true)
-	dimStyle   = lipgloss.NewStyle().Faint(true)
-)
-
-// fit cuts s to w cells and pads it to w.
-func fit(s string, w int) string {
-	s = xansi.Truncate(s, w, "…")
-	return s + strings.Repeat(" ", max(w-xansi.StringWidth(s), 0))
-}
-
-func (m *model) column(p *pane) []string {
-	rows := []string{titleStyle.Render(fit(" "+p.title, m.pw))}
-	body := strings.Split(strings.TrimSuffix(p.view, "\n"), "\n")
-	if p.err != nil {
-		body = []string{"error: " + p.err.Error()}
-	}
-	for i := range m.ph {
-		l := ""
-		if i < len(body) {
-			l = body[i]
-		}
-		rows = append(rows, fit(l, m.pw)+"\x1b[m")
-	}
-	s := p.st
-	rows = append(rows,
-		fit(fmt.Sprintf(" last %.1f ms · avg %.1f · max %.1f", ms(s.last), ms(s.avg()), ms(s.max)), m.pw),
-		fit(fmt.Sprintf(" frames %d · dropped %d · lag %d tok · shrank %d×", s.frames, s.dropped, m.pos-p.shown, s.shrank), m.pw),
-	)
-	return rows
-}
-
-func (m *model) help() string {
-	state := fmt.Sprintf("%d/%d tok · %.0f tok/s", m.pos, len(m.ends), m.rate)
-	if m.paused {
-		state += " · paused"
-	} else if m.pos == len(m.ends) {
-		state += " · done"
-	}
-	km := m.km
-	a := func(x bubbleteandmd.Action) string { return km.Label(x) }
-	keys := fmt.Sprintf("q quit · space pause · r restart · +/- rate · %s/%s forms · %s toggle · %s/%s tabs · %s/%s scroll · %s/%s page",
-		a(bubbleteandmd.ActionNext), a(bubbleteandmd.ActionPrev), a(bubbleteandmd.ActionToggle),
-		a(bubbleteandmd.ActionLeft), a(bubbleteandmd.ActionRight), a(bubbleteandmd.ActionScrollUp),
-		a(bubbleteandmd.ActionScrollDown), a(bubbleteandmd.ActionPageUp), a(bubbleteandmd.ActionPageDown))
-	return dimStyle.Render(fit(" "+state+" │ "+keys, m.w))
-}
-
-func (m *model) content() string {
-	if m.w == 0 {
-		return "starting…"
-	}
-	l, r := m.column(m.panes[left]), m.column(m.panes[right])
-	var b strings.Builder
-	for i := range l {
-		b.WriteString(l[i] + "│" + r[i] + "\n")
-	}
-	b.WriteString(m.help())
-	return b.String()
-}
-
-func (m *model) View() tea.View {
-	v := tea.NewView(m.content())
-	v.AltScreen = true
-	return v
 }

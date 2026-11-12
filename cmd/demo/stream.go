@@ -108,6 +108,12 @@ func (e *naiveEngine) render(src string, _ bool) (string, int, error) {
 	return strings.Join(ls, "\n") + "\n", n, nil
 }
 
+// buckets is how many parts of the reply the frame-time chart keeps.
+const buckets = 512
+
+// span is one render, start to end, for the busy share.
+type span struct{ from, to time.Time }
+
 // stats are one pane's render numbers.
 type stats struct {
 	frames  int
@@ -117,6 +123,17 @@ type stats struct {
 	last    time.Duration
 	total   time.Duration
 	max     time.Duration
+	// byPos: the longest frame per part of the reply (token index ×
+	// buckets / tokens); 0 is no frame there.
+	byPos   [buckets]time.Duration
+	recent  []span    // renders that ended in the last busyWindow
+	finalAt time.Time // when the Final output arrived; zero before
+	flash   time.Time // show the shrink marker until then
+	cut     int       // lines lost by the last shrink
+	unsafe  int       // left: bytes Sanitize removed; right: controls shown as pictures
+	// age: the longest time from a token's release to the output that
+	// first has it.
+	age time.Duration
 }
 
 func (s stats) avg() time.Duration {
@@ -124,6 +141,43 @@ func (s stats) avg() time.Duration {
 		return 0
 	}
 	return s.total / time.Duration(s.frames)
+}
+
+// busyWindow is the time the busy share is measured over.
+const busyWindow = time.Second
+
+// busy is the share of one core the pane's renders took in the last
+// busyWindow before now; inFlight, when not zero, is the start of the
+// render still running.
+func (s stats) busy(now, inFlight time.Time) float64 {
+	from := now.Add(-busyWindow)
+	var sum time.Duration
+	add := func(a, b time.Time) {
+		if a.Before(from) {
+			a = from
+		}
+		if b.After(a) {
+			sum += b.Sub(a)
+		}
+	}
+	for _, sp := range s.recent {
+		add(sp.from, sp.to)
+	}
+	if !inFlight.IsZero() {
+		add(inFlight, now)
+	}
+	return min(float64(sum)/float64(busyWindow), 1)
+}
+
+// fps is the number of frames that ended in the last busyWindow.
+func (s stats) fps(now time.Time) int {
+	n := 0
+	for _, sp := range s.recent {
+		if !sp.to.Before(now.Add(-busyWindow)) {
+			n++
+		}
+	}
+	return n
 }
 
 func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
