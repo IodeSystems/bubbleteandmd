@@ -276,3 +276,15 @@
   TestTableHoldHeaderLine (every byte prefix, 9 and 79-cell headers,
   dark/notty, w50/w78: no shrink, held from the first `|`),
   TestTableHoldNotTable, TestTableHoldScope.
+- 2026-11-11 (test flake, chroma): TestWideInvariant failed once on the M1
+  (1 of 540954 checks): Final drew a space in chroma's Error style where the
+  whole render drew plain text. Cause is upstream, not a cache or stream
+  path: chroma v2.27.0 gives each lexer rule a 250 ms regexp2 MatchTimeout
+  on a wall clock and reads a timeout as no match, so a goroutine that is
+  off the CPU for 250 ms mid-match writes an Error token on valid code.
+  Reproduced on amd64 and the M1 with many goroutines lexing at once (up to
+  535 of 16711 lexes); chroma master (v3) has the same timeout and returns
+  it as a Format error instead. Tests now freeze regexp2's clock in
+  TestMain (lextimeout_test.go; TestLexUnderLoad guards it). The library
+  does not: that would also remove chroma's runaway-match guard in the
+  caller's process (open for Carl). Upstream draft: chroma issue section 10.
