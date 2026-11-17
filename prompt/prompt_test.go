@@ -97,10 +97,13 @@ func TestOptions(t *testing.T) {
 		t.Error("default prompt mentions mermaid or math")
 	}
 	full := Format(Options{Math: true, Diagrams: true, Header: "## Formatting"})
-	for _, s := range []string{"```mermaid", "$…$", "## Formatting\n", `forms in "Formatting"`} {
+	for _, s := range []string{"```mermaid", "$…$", "## Formatting\n"} {
 		if !strings.Contains(full, s) {
 			t.Errorf("full prompt lacks %q", s)
 		}
+	}
+	if p := FormsPrinciple("## Formatting"); !strings.Contains(p, `forms in "Formatting"`) {
+		t.Errorf("FormsPrinciple lacks the header name: %q", p)
 	}
 }
 
