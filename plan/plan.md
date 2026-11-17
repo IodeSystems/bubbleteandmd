@@ -7,7 +7,7 @@ Source of the work: owner brief from dun-bf, 2026-11-10 (Carl approved).
 Layers in order, each usable alone. dun pins tags; tags/push need Carl's OK.
 
 Tags: v0.4.1 @ 8d454ad, v0.5.0 @ 2f3ad29, v0.5.1 @ dc9c682 (pushed 2026-11-12; dc9c682: M1 full suite all pass, root 1189 s;
-dev box -short all pass, root 541 s; vet clean both). GitHub releases v0.4.0..v0.5.1 made (v0.5.1 = Latest). dun note: pin v0.5.1.
+dev box -short all pass, root 541 s; vet clean both). GitHub releases v0.4.0..v0.5.1 made. v0.5.2: prompt lead 3 sentences → 1 (dun-bf request, Carl OK 2026-11-17; prompt/ imported by nothing else here).
 
 ## Active work
 
