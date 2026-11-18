@@ -223,6 +223,15 @@ Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (br
 - Upstream drafts target chroma/glamour/x only; chroma v2.27.0, glamour v2.0.1, x/ansi v0.11.9 are still the latest (go list 2026-11-12).
 - **risks**: flowdown's TUI target diff colouring (+/-/@@ by first char) is simpler than ours; not a syntax change.
 
+### ◐ Marker lines inside content (Carl 2026-11-18; decisions.md "marker lines inside content")
+dun-bf: `[!PROS]`/`[!CONS]` lines in a `> [!TABS]` panel printed as text.
+- ✅ internal/directive/recurse.go: SplitQuotes (form quote split at a marker line; not tabs) + BodyForms (marker line in a body opens a quote).
+  All marker kinds. Keys stay raw offsets (Shifts). Tests: recurse_test.go, markerlines_test.go, testdata/directives/{markerlines,tabsproscons}.md.
+- **next**: Carl review; dun-bf bump once tagged.
+- **risks**: shrinks while streaming pros/cons in tabs (taught forms too: side-by-side pairing, `#`-only heading line) — not fixed;
+  a lazy (unquoted) line in a form quote stops the split scan (conservative); a blank line ends a body run (loose list under a marker line splits).
+- **blocking decisions**: Carl: a callout marker line in a callout quote = sibling (chosen) vs nested; marker in a plain quote (not split, chosen).
+
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
 - Assumption: benchmark code lives in the repo (`bench/` package, `_test.go`), committed as `test:`/`chore:`.
