@@ -2,7 +2,7 @@
 
 Streaming Markdown for terminal programs built on
 [bubbletea](https://github.com/charmbracelet/bubbletea). A Go port of the
-ideas in [llx-markdown](https://github.com/rsaryev/llx-markdown) (now named
+ideas in [llx-markdown](https://github.com/localixai/flowdown) (now named
 flowdown; MIT; see NOTICE), for the terminal. First user: [dun](https://github.com/iodesystems/dun).
 
 Status: layer 1 (streaming core: `NewStream`, `Frame`, `Final`) in v0.1.0. Layers 2-3 in progress.

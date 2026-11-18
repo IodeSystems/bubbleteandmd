@@ -106,7 +106,7 @@ func headerOf(h string) string {
 // Format does not include it; a host that wants it places it itself.
 func FormsPrinciple(header string) string {
 	name := strings.TrimLeft(headerOf(header), "# \t")
-	return fmt.Sprintf(`- Shape every reply with the forms in "%s": the page renders them, and a plain list or table where a form fits is a formatting defect.`, name)
+	return fmt.Sprintf(`- Shape every reply with the forms in "%s": the reader sees them drawn, and a plain list or table where a form fits is a formatting defect.`, name)
 }
 
 // Format returns the section that teaches the directive forms, ready to place
