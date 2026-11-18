@@ -223,6 +223,14 @@ Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (br
 - Upstream drafts target chroma/glamour/x only; chroma v2.27.0, glamour v2.0.1, x/ansi v0.11.9 are still the latest (go list 2026-11-12).
 - **risks**: flowdown's TUI target diff colouring (+/-/@@ by first char) is simpler than ours; not a syntax change.
 
+### ◐ Release v0.5.3/v0.6.0: dun-bf tabs bug + flowdown v0.7.1 port (Carl 2026-11-18: "port then ship everything together")
+- ✅ prompt: "defect" kept (82f0537); pros/cons each own quote outside tabs (82d1ea3); FormsPrinciple wording as flowdown; URL localixai/flowdown (5d29ece).
+- ◐ nested markers: a marker line inside a tab/quote body starts that form (Carl: "the tab is just recursive content"; deviation from flowdown). Worktree branch, tests running.
+- ◐ heal port (flowdown heal.ts v0.5.0..v0.7.1) + 4 parser readings (654bfee) vs goldmark. Worktree branch.
+- ◻ after nested merge: `---` between same-depth tab headings parts tabs (6ec2a16); `$…$` math with a math-only sign (core/dollars.ts); run spec/forms/spec.txt.
+- ◻ merge all → full suite dev + M1 → tag (minor: syntax change) → dun-bf note.
+- **risks**: our prompt teaches "after the tabs a `---`" — the new rule parts tabs only before a same-depth heading, so the taught form still ends the tabs.
+
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
 - Assumption: benchmark code lives in the repo (`bench/` package, `_test.go`), committed as `test:`/`chore:`.
