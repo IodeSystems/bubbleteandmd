@@ -1,0 +1,37 @@
+
+  Drop the archive note · Nested …
+                                  
+  ▸ Drop the archive note ────────
+  + Pros                          
+  • One-line change, no history   
+    rewrite                       
+  • docs/archive/ is not needed to
+    run it                        
+                                  
+  − Cons                          
+  • Loses a category case study   
+                                  
+  ▸ Nested quote ─────────────────
+  + Pros                          
+  • Keeps the conclusion          
+                                  
+  − Cons                          
+  • Six substitutions             
+                                  
+  ▸ Folded and noted ─────────────
+  Intro text.                     
+                                  
+  ▾ More                          
+                                  
+    Folded body.                  
+                                  
+  | NOTE                          
+  |                               
+  | A note in a tab.              
+                                  
+  + Pros                          
+  • One quote                     
+                                  
+  − Cons                          
+  • Both sides                    
+

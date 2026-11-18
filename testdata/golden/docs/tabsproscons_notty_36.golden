@@ -1,0 +1,30 @@
+
+  Drop the archive note · Redact …
+                                  
+  ▸ Drop the archive note ────────
+  + Pros                          
+  • One-line change, no history   
+    rewrite                       
+  • docs/archive/ is not needed to
+    run VDS                       
+                                  
+  − Cons                          
+  • Loses a category case study   
+                                  
+  ▸ Redact VIN + detailIds ───────
+  + Pros                          
+  • Keeps the analytical          
+    conclusion                    
+  • Teeth in the privacy test     
+                                  
+  − Cons                          
+  • Six substitutions in one file 
+                                  
+  ▸ Push as is ───────────────────
+  + Pros                          
+  • Nothing to do                 
+                                  
+  − Cons                          
+  • Real VIN and five tow records 
+    in a new repo, permanently    
+
