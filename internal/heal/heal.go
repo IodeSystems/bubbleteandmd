@@ -123,12 +123,14 @@ func closeProse(text string, fenceEnd int) string {
 		return text
 	}
 	// What was hidden may leave a marker bare (`- *` is `- `): it is held back as one typed so,
-	// and a quote line it leaves (`> - *` is `>`) as one typed so.
+	// and a quote prefix it leaves (`> - *` is `>`) is healed on as one typed so. A dropped
+	// line is not: the form marker above stays (`> [!STEPS]\n1. **` is `> [!STEPS]\n`).
 	healed := head + tail + after
-	if d := dropTrailingBareBlockMarker(healed); d != healed {
+	d := dropTrailingBareBlockMarker(healed)
+	if d != healed && !strings.HasSuffix(d, "\n") {
 		return closeProse(d, min(fenceEnd, len(d)))
 	}
-	return healed
+	return d
 }
 
 // dropTrailingBareBlockMarker holds back a last line that is so far only a block marker (`-`,

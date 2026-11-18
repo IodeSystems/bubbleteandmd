@@ -171,7 +171,9 @@ func TestClose(t *testing.T) {
 	})
 	run(t, "a marker in a quote heals to its quote prefix",
 		pair{"> [!TABS]\n> #", "> [!TABS]"}, pair{"> a\n> -", "> a"},
-		pair{"> > a\n> > ##", "> > a\n"}, pair{"- a\n  -", "- a\n"})
+		pair{"> > a\n> > ##", "> > a\n"}, pair{"- a\n  -", "- a\n"},
+		// A dropped line is not healed on: the form marker above it stays (TestShowcaseNoShrink).
+		pair{"> [!STEPS]\n1. **", "> [!STEPS]\n"})
 	same(t, "once a word follows the marker, it is drawn",
 		"list:\n\n* a", "# T", "#hashtag", "2024 was")
 	run(t, "completes a construct where the text stops, before a line break or a space it ends in",
