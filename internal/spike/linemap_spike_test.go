@@ -164,10 +164,16 @@ func (m *mirror) render(t *testing.T, tg *mtarget, md string) mapped {
 	if strings.HasPrefix(md, join.Sentinel) {
 		body, first = md[len(join.Sentinel):], false
 	}
+	// As the renderer: marker lines in a body open forms (BodyForms), and
+	// each block is read as Prepare rewrites it.
+	if tg != m.outer {
+		body, _ = directive.BodyForms(body)
+	}
 	bs := blocks.Split(body)
 	anyForm := false
-	for _, b := range bs {
-		if _, ok := directive.Parse(b.Source); ok {
+	for i := range bs {
+		bs[i].Source, _, _ = directive.Prepare(bs[i].Source)
+		if _, ok := directive.Parse(bs[i].Source); ok {
 			anyForm = true
 		}
 	}

@@ -70,7 +70,8 @@ func newTestRenderer(t *testing.T, style string, w int) *DirectiveRenderer {
 // `$$` formula: whether the renderer draws anything glamour does not.
 func hasForm(text string) bool {
 	for _, b := range blocks.Split(text) {
-		if _, ok := directive.Parse(b.Source); ok {
+		src, _, _ := directive.Prepare(b.Source)
+		if _, ok := directive.Parse(src); ok {
 			return true
 		}
 		if _, ok := mathFences(b.Source); ok {

@@ -143,16 +143,16 @@ func (sc scope) key(rel int) string {
 	return sc.parent + "@" + strconv.Itoa(rel)
 }
 
-// parsed is one top-level block: its source with `$$` formulas made math
-// fences, and the first form in it. wide: the wrap width of a wide block
-// (wide.go), else 0. shifts: where the rewrite moved the text after a
-// formula.
+// parsed is one top-level block: its source as directive.Prepare rewrote it
+// (`$$` formulas made math fences, form quotes split at marker lines), and
+// the first form in it. wide: the wrap width of a wide block
+// (wide.go), else 0. shifts: where the rewrites moved the text.
 type parsed struct {
 	src    string
 	d      directive.Directive
 	form   bool
 	wide   int
-	shifts []directive.MathShift
+	shifts directive.Shifts
 	// diff: an untitled diff fence (diff.go); body is its code.
 	diff bool
 	body string
@@ -170,11 +170,17 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 	if strings.HasPrefix(md, join.Sentinel) {
 		body, first = md[len(join.Sentinel):], false
 	}
+	// A form body is recursive content: its marker lines open forms
+	// (directive.BodyForms); offsets map back through bodyShifts.
+	var bodyShifts []directive.MathShift
+	if t != &r.outer {
+		body, bodyShifts = directive.BodyForms(body)
+	}
 	bs := blocks.Split(body)
 	ps := make([]parsed, len(bs))
 	plain := true
 	for i, b := range bs {
-		src, math, shifts := directive.MathFences(b.Source)
+		src, math, shifts := directive.Prepare(b.Source)
 		d, ok := directive.Parse(src)
 		ps[i] = parsed{src: src, d: d, form: ok, shifts: shifts}
 		if !ok && !math {
@@ -202,7 +208,7 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 				pieces = append(pieces, piece{text: text})
 			}
 		} else {
-			pieces, err = r.block(t, pieces, p, bs[i].Offset, first && i == 0, sc)
+			pieces, err = r.block(t, pieces, p, bs[i].Offset, bodyShifts, first && i == 0, sc)
 		}
 		if err != nil {
 			return "", nil, err
@@ -230,7 +236,7 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 // block appends the pieces of one top-level block, at byte at of the
 // rendered text: Markdown around a form renders through glamour, a form
 // draws as a framed piece.
-func (r *DirectiveRenderer) block(t *target, pieces []piece, p parsed, at int, first bool, sc scope) ([]piece, error) {
+func (r *DirectiveRenderer) block(t *target, pieces []piece, p parsed, at int, bodyShifts []directive.MathShift, first bool, sc scope) ([]piece, error) {
 	src, d, ok := p.src, p.d, p.form
 	pos := 0
 	for {
@@ -245,7 +251,7 @@ func (r *DirectiveRenderer) block(t *target, pieces []piece, p parsed, at int, f
 			first = false
 		}
 		// Keys are offsets in the source as written (directive.IDs).
-		lines, marks, err := r.form(d, t.width, sc, at+directive.RawOffset(p.shifts, pos+d.Start))
+		lines, marks, err := r.form(d, t.width, sc, directive.RawOffset(bodyShifts, at+p.shifts.Raw(pos+d.Start)))
 		if err != nil {
 			return nil, err
 		}
