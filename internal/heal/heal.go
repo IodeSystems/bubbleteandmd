@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	partialImage   = regexp.MustCompile(`!\[[^\]]*(?:\]\([^)]*)?$`)
-	partialLink    = regexp.MustCompile(`(?:^|[^!])\[[^\]]*\]\([^)]*$`)
+	partialImage   = regexp.MustCompile(`\[?!\[[^\]]*(?:\](?:\([^)]*)?)?$`)
+	badgeImage     = regexp.MustCompile(`\[(!\[[^\]]*\]\([^)]*\))\]?$`)
+	partialLink    = regexp.MustCompile(`(?:^|[^!])\[(?:[^\]]*|!\[[^\]]*\]\([^)]*\))\]\([^)]*$`)
 	codeSpan       = regexp.MustCompile("`[^`]*`")
 	closedFormula  = regexp.MustCompile(`\$\$[\s\S]*?\$\$|\$[^$\n]+\$`)
 	displayFormula = regexp.MustCompile(`\$\$[\s\S]*?\$\$`)
@@ -26,6 +27,9 @@ var (
 	quoteLine      = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?([^\r\n\x{2028}\x{2029}]*)$`)
 	markerHead     = regexp.MustCompile(`^\[!([A-Za-z]+)\]`)
 	partialOpener  = regexp.MustCompile("^(?: {0,3}>[ \t]?)* {0,3}(?:`{1,2}|~{1,2}|[0-9]{1,9}|</?[A-Za-z][A-Za-z0-9-]*|</?)$")
+	// bareBlockMarker is flowdown v0.7.1's BARE_BLOCK_MARKER.
+	bareBlockMarker = regexp.MustCompile(`^[ \t]*(?:>[ \t]?)*(?:[-*+=]+|#{1,6}|\d{1,9}[.)]?|>)[ \t]*$`)
+	bulletLine      = regexp.MustCompile(`^ {0,3}[-*+][ \t]+\S`)
 )
 
 // containerKinds are llx-markdown's dialect.ts CONTAINER_KINDS.
@@ -62,6 +66,12 @@ func Close(text string) string {
 		return text + "\n" + closer
 	}
 
+	return closeProse(text, fenceEnd)
+}
+
+// closeProse is Close outside a fence. Text before fenceEnd (the end of the last closed fence)
+// holds nothing it completes.
+func closeProse(text string, fenceEnd int) string {
 	// A half-typed table row, a callout marker still being typed and a form marker with no
 	// content yet are hidden; that is the whole fix for this frame.
 	if d := dropTrailingPartialTableRow(text); d != text {
@@ -76,26 +86,34 @@ func Close(text string) string {
 	if d := dropTrailingPartialOpener(text); d != text {
 		return d
 	}
-
-	// Inline constructs cannot span a blank line, so only the last paragraph can dangle. Nor can
-	// they start in a fence: the tail starts after the last closed fence when that is later (not
-	// in the TS, which counted a code block's backticks and drew a "`" line under it).
-	at := strings.LastIndex(text, "\n\n") + 2
-	if at < 2 {
-		at = 0
+	// The text above a block marker held back may itself end mid-construct (`**bold` on the
+	// line before).
+	if d := dropTrailingBareBlockMarker(text); d != text {
+		return closeProse(d, min(fenceEnd, len(d)))
 	}
-	at = max(at, fenceEnd)
+
+	// Inline constructs cannot span a blank line or a bullet item's first line, so only the last
+	// paragraph can dangle. Nor can they start in a fence: the tail starts after the last closed
+	// fence when that is later (not in the TS, which counted a code block's backticks and drew a
+	// "`" line under it).
+	at := max(lastParagraph(text), fenceEnd)
 	head, tail := text[:at], text[at:]
 	if tail == "" {
 		return text
 	}
+	// What is completed goes where the text stops, before the white space it may end in: a
+	// closer after a space or line break closes nothing (`**bold **` draws its stars).
+	end := len(trimRightJS(tail))
+	tail, after := tail[:end], tail[end:]
 	orig := tail
 
 	tail = dropTrailingPartialImage(tail)
 	tail = withholdPartialMath(tail)
 	tail = closeTrailingLink(tail)
 	tail = balanceInlineCode(tail)
-	tail = hideTrailingLoneDelimiter(tail)
+	if after == "" {
+		tail = hideTrailingLoneDelimiter(tail)
+	}
 	tail = balanceDoubleDelimiter(tail, "**")
 	tail = balanceDoubleDelimiter(tail, "~~")
 	tail = balanceSingleEmphasis(tail, '*')
@@ -103,18 +121,56 @@ func Close(text string) string {
 	if tail == orig {
 		return text
 	}
-	return head + tail
+	// What was hidden may leave a marker bare (`- *` is `- `): it is held back as one typed so.
+	return dropTrailingBareBlockMarker(head + tail + after)
 }
 
-// dropTrailingPartialImage hides a trailing half-written image (`![alt](partial-url` or `![alt`).
+// dropTrailingBareBlockMarker holds back a last line that is so far only a block marker (`-`,
+// `*`, `+`, `##`, `12.`, `>`, `> -`) or a run of `-` or `=`, until the first word of what it
+// opens. Drawn at once it is an empty list item, heading or quote; and a `-` under a paragraph
+// makes the paragraph a setext heading until the item's text arrives. From flowdown v0.7.1.
+func dropTrailingBareBlockMarker(text string) string {
+	nl := strings.LastIndexByte(text, '\n')
+	// A marker is short: a long last line is read no further.
+	if len(text)-nl > 16 || !bareBlockMarker.MatchString(text[nl+1:]) {
+		return text
+	}
+	return text[:nl+1]
+}
+
+// lastParagraph is where the last paragraph of text starts: after its last blank line, or at its
+// last line that starts a bullet item, which ends the paragraph above it. In a long tight list a
+// frame heals the item being written, not the list; and a lone `*` in an earlier item (`2*3`) is
+// not paired with one in the last. From flowdown v0.7.1.
+func lastParagraph(text string) int {
+	from := strings.LastIndex(text, "\n\n") + 2
+	if from < 2 {
+		from = 0
+	}
+	for at := strings.LastIndexByte(text, '\n'); at >= from; at = strings.LastIndexByte(text[:at], '\n') {
+		if bulletLine.MatchString(text[at+1 : min(len(text), at+16)]) {
+			return at + 1
+		}
+	}
+	return from
+}
+
+// dropTrailingPartialImage hides a trailing half-written image (`![alt](partial-url`, `![alt]`
+// or `![alt`), and the `[` before it when it is a badge's (`[![alt](src)](href)`). A badge whose
+// image is written and whose link is not (`[![alt](src)` or `[![alt](src)]`) is drawn as its
+// image, without the brackets that make it a link a few tokens later (flowdown v0.7.1).
 func dropTrailingPartialImage(tail string) string {
 	if loc := partialImage.FindStringIndex(tail); loc != nil {
-		return tail[:loc[0]]
+		tail = tail[:loc[0]]
+	}
+	if m := badgeImage.FindStringSubmatchIndex(tail); m != nil {
+		tail = tail[:m[0]] + tail[m[2]:m[3]]
 	}
 	return tail
 }
 
-// closeTrailingLink gives a trailing `[text](partial-url` its `)`.
+// closeTrailingLink gives a trailing `[text](partial-url` its `)`. The text may be a badge's
+// image.
 func closeTrailingLink(tail string) string {
 	if partialLink.MatchString(tail) {
 		return tail + ")"
@@ -189,8 +245,9 @@ func balanceInlineCode(tail string) string {
 
 // balanceDoubleDelimiter balances `**` or `~~`, ignoring code spans and formulas. A bare
 // trailing opener is stripped; one with content after it gets closed, before any trailing white
-// space: a closer after a space does not close (`**bold **` draws its stars), and the frame would
-// change when the next word arrives. The TS closes after the space.
+// space: a closer after a space does not close (`**bold **` draws its stars). closeProse sets the
+// text's own trailing white space aside first, as flowdown v0.7.1 does; white space a fix before
+// this one left at the end (a hidden image) is dropped.
 func balanceDoubleDelimiter(tail, delim string) string {
 	masked := maskInert(tail)
 	count := 0
@@ -216,7 +273,8 @@ func balanceDoubleDelimiter(tail, delim string) string {
 // hideTrailingLoneDelimiter hides a `*` or `_` that ends the tail after white space or at its
 // start: the character after it, which says whether it opens emphasis, is not written yet. Drawn
 // as a literal, it would join the line above as emphasis a token later (`   *` under a STEPS
-// title). Not in the TS, which keeps it.
+// title). Not when white space followed it (closeProse): then it is text. Not in the TS, which
+// keeps it.
 func hideTrailingLoneDelimiter(tail string) string {
 	n := len(tail)
 	if n == 0 || tail[n-1] != '*' && tail[n-1] != '_' {
@@ -244,7 +302,7 @@ func dropTrailingPartialOpener(text string) string {
 // runs of two or more belong to `**`/`__`; code and formulas are masked; `*` counts only when it
 // touches a word character; `_` only when the word character is on one side (no intraword
 // emphasis). An odd count appends one closer (before trailing white space, as
-// balanceDoubleDelimiter; not in the TS), or strips a bare trailing opener.
+// balanceDoubleDelimiter), or strips a bare trailing opener.
 func balanceSingleEmphasis(tail string, char byte) string {
 	masked := maskInert(tail)
 	active := 0

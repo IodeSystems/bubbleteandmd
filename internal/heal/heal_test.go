@@ -6,6 +6,7 @@ package heal
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"unsafe"
@@ -141,7 +142,53 @@ func TestClose(t *testing.T) {
 	same(t, "leaves complete single emphasis untouched", "an *italic* word", "an _italic_ word")
 	same(t, "does not touch a multiplication asterisk", "compute 2 * 3 now")
 	same(t, "does not touch a glob asterisk", "match *.ts files")
-	same(t, "does not touch a trailing bullet marker", "list:\n\n* ")
+	t.Run("holds back a block marker until the first word of what it opens", func(t *testing.T) {
+		// Alone on the last line, each is an empty item, heading or quote for a frame.
+		for _, m := range []string{"* ", "-", "+", "##", "#", "1.", "12)", "3", ">", "> -", "> > ", "   -"} {
+			if got := Close("list:\n\n" + m); got != "list:\n\n" && got != "list:\n" {
+				t.Errorf("Close(%q) = %q", "list:\n\n"+m, got)
+			}
+		}
+	})
+	run(t, "a block marker under a paragraph is held back, and the text above it completed",
+		// A `-` or `=` under a paragraph would make it a heading until the item's text came.
+		pair{"Some paragraph text.\n-", "Some paragraph text.\n"},
+		pair{"Some paragraph text.\n===", "Some paragraph text.\n"},
+		pair{"Some **bold\n-", "Some **bold**\n"})
+	same(t, "once a word follows the marker, it is drawn",
+		"list:\n\n* a", "# T", "#hashtag", "2024 was")
+	run(t, "completes a construct where the text stops, before a line break or a space it ends in",
+		pair{"A **long bold\n", "A **long bold**\n"},
+		pair{"Some *it ", "Some *it* "},
+		pair{"Run `npm i\n", "Run `npm i`\n"},
+		pair{"see [docs](https://exa\n", "see [docs](https://exa)\n"})
+	same(t, "plain text with a line break", "plain text\n", "a stray * ")
+	run(t, "inline fixes start at the last bullet line of a tight list",
+		pair{"- 2*3 is six\n- *it", "- 2*3 is six\n- *it*"})
+	t.Run("a badge is drawn as its image while its link is still being written", func(t *testing.T) {
+		badge := "Build: [![build](https://img.example/b.svg)](https://ci.example/run) ok"
+		whole := regexp.MustCompile(`\[!\[build\]\(https://img\.example/b\.svg\)\]\([^)]*\)`)
+		image := regexp.MustCompile(`!\[build\]\(https://img\.example/b\.svg\)`)
+		// No frame shows a bracket or a bare address, once the badge's `[!` has its second `[`.
+		for end := 11; end <= len(badge); end++ {
+			drawn := image.ReplaceAllString(whole.ReplaceAllString(Close(badge[:end]), ""), "")
+			if strings.ContainsAny(drawn, "[]()!") {
+				t.Errorf("Close(%q) draws %q", badge[:end], drawn)
+			}
+		}
+		for _, p := range []pair{
+			{"Build: [![build](https://img.example/b.svg)", "Build: ![build](https://img.example/b.svg)"},
+			{"Build: [![build](https://img.example/b.svg)]", "Build: ![build](https://img.example/b.svg)"},
+			{"Build: [![build](https://img.example/b.svg)](https://ci", "Build: [![build](https://img.example/b.svg)](https://ci)"},
+			{"see ![alt]", "see "},
+			// An exclamation mark that ends a sentence is no image.
+			{"Done!", "Done!"},
+		} {
+			if got := Close(p.in); got != p.want {
+				t.Errorf("Close(%q) = %q, want %q", p.in, got, p.want)
+			}
+		}
+	})
 	same(t, "does not touch intraword underscores",
 		"the file_name var", "python __init__ dunder", "a snake_case_var here")
 	same(t, "ignores single emphasis chars inside inline code", "see `a * b` and `x_y`")
@@ -357,12 +404,13 @@ func TestNoShrinkRules(t *testing.T) {
 		pair{"Intro\n\n> ", "Intro\n"}, pair{"Intro\n\n>", "Intro\n"}, pair{">", ""},
 		pair{"> a\n>", "> a"})
 	run(t, "closes emphasis before trailing white space",
-		pair{"1. **First**\n   *Day ", "1. **First**\n   *Day*"},
-		pair{"a **bold ", "a **bold**"}, pair{"a ~~gone\n", "a ~~gone~~"})
+		pair{"1. **First**\n   *Day ", "1. **First**\n   *Day* "},
+		pair{"a **bold ", "a **bold** "}, pair{"a ~~gone\n", "a ~~gone~~\n"})
 	run(t, "completes a half-typed double closer",
 		pair{"- **3×*", "- **3×**"}, pair{"the **whole*", "the **whole**"})
 	run(t, "hides a lone trailing emphasis character",
-		pair{"1. **First**\n   *", "1. **First**\n   "}, pair{"- *", "- "}, pair{"_", ""})
+		// `   *` and `- ` are bare block markers then, held back as well.
+		pair{"1. **First**\n   *", "1. **First**\n"}, pair{"- *", ""}, pair{"a _", "a "}, pair{"_", ""})
 	same(t, "keeps a delimiter that closes a span", "an *it*", "an _it_")
 	run(t, "skips inline fixes inside a closed fence",
 		pair{"a\n\n```\nx\n\ny `z\n```\n", "a\n\n```\nx\n\ny `z\n```\n"},
