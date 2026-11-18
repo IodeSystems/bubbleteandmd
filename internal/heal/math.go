@@ -1,5 +1,6 @@
 // Ported from llx-markdown packages/llx-markdown/src/core/dollars.ts and math-delimiters.ts
-// (MIT, see NOTICE). Only what the healer reads is ported: not literalDollars or the escaper.
+// (MIT, see NOTICE), as of flowdown v0.7.1. Not the escaper: MathSpans gives the formulas
+// literalDollars leaves, for the renderer (internal/directive InlineMath).
 
 package heal
 
@@ -131,9 +132,33 @@ func upperRun(s string) int {
 	return n
 }
 
-// isLiteralDollar reports whether the `$` at index is a dollar sign by its own look: a price or a
-// shell variable.
+// isMathSign reports a sign only math writes: what a formula that starts with a number shows
+// itself by (MATH_SIGN, /[=^_\\{}<>]/).
+func isMathSign(c rune) bool { return strings.ContainsRune(`=^_\{}<>`, c) }
+
+// isLiteralDollar reports whether the `$` at index is a dollar sign: a price or a shell variable
+// by its own look. A formula may start with a number (`$2 + 2 = 4$`, flowdown v0.7.1): a
+// price-looking `$` still opens one when a `$` of no such look closes it in its paragraph and
+// what lies between holds a math sign and no other `$`; "$5 and $10", "pay $5 now and 7$ later"
+// and "from $5 for $n^2$" hold none.
 func isLiteralDollar(text string, index int) bool {
+	if !looksLiteral(text, index) {
+		return false
+	}
+	if !currencyAfter(window(text, index+1)) || !opensInlineMath(text, index) {
+		return true
+	}
+	end := inlineMathClose(text, index)
+	if end == -1 {
+		return true
+	}
+	inner := text[index+1 : end]
+	return strings.Contains(inner, "$") || !strings.ContainsFunc(inner, isMathSign)
+}
+
+// looksLiteral reports whether the `$` at index is a dollar sign by its own look, whatever
+// follows in the paragraph: a price or a shell variable.
+func looksLiteral(text string, index int) bool {
 	if at(text, index) != '$' || isEscaped(text, index) {
 		return false
 	}
@@ -161,15 +186,39 @@ func paragraphEnd(text string, index int) int {
 }
 
 // inlineMathClose is the single `$` that closes the formula opened at open, or -1 when none in
-// its paragraph does. A dollar sign (`$5`) is text and closes nothing.
+// its paragraph does. A dollar sign by its look (`$5`) is text and closes nothing.
 func inlineMathClose(text string, open int) int {
 	end := paragraphEnd(text, open)
 	for i := nextDollar(text, open+1); i != -1 && i < end; i = nextDollar(text, i+1) {
-		if isSingleDollar(text, i) && !isLiteralDollar(text, i) && closesInlineMath(text, i) {
+		if isSingleDollar(text, i) && !looksLiteral(text, i) && closesInlineMath(text, i) {
 			return i
 		}
 	}
 	return -1
+}
+
+// MathSpans returns each inline formula in prose as the offsets of its opening and closing `$`,
+// read left to right as literalDollars reads them: every other single `$` is text (a price, a
+// variable, one that cannot open, one that opens but finds no close in its paragraph). prose
+// is Markdown with its code blanked, offsets kept; a `$$` run is skipped whole.
+func MathSpans(prose string) [][2]int {
+	var out [][2]int
+	for i := nextDollar(prose, 0); i != -1; i = nextDollar(prose, i+1) {
+		if at(prose, i+1) == '$' {
+			for at(prose, i+1) == '$' {
+				i++
+			}
+			continue
+		}
+		if !isSingleDollar(prose, i) || isLiteralDollar(prose, i) || !opensInlineMath(prose, i) {
+			continue
+		}
+		if end := inlineMathClose(prose, i); end != -1 {
+			out = append(out, [2]int{i, end})
+			i = end
+		}
+	}
+	return out
 }
 
 func nextDollar(text string, from int) int {

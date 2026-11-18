@@ -6,6 +6,7 @@ package heal
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -285,6 +286,41 @@ func TestIsLiteralDollar(t *testing.T) {
 			}
 		}
 	})
+}
+
+// flowdown v0.7.1 dollars.test.tsx: a formula may start with a number; prices stay text.
+func TestMathSpans(t *testing.T) {
+	for s, want := range map[string][][2]int{
+		"Sum: $2 + 2 = 4$.":         {{5, 15}},
+		`A step: $3 \cdot 4$ here.`: {{8, 18}},
+		"$5 and $10 = cheap":        nil,
+		"pay $5 now and 7$ later":   nil,
+		"From $5 for $n^2$ rows":    {{12, 16}},
+		"$50/month or $500/year":    nil,
+		"costs $5 and $10":          nil,
+		"$HOME/bin and $PATH":       nil,
+		"$x$ and $y$":               {{0, 2}, {8, 10}},
+		"$AB = CD$":                 {{0, 8}},
+		"$$x$$ and $y$":             {{10, 12}},
+		"$a\n\nb$":                  nil,
+		`\$x$ and $y$`:              {{9, 11}},
+		"$ x $":                     nil,
+		"$a$5":                      nil,
+	} {
+		if got := MathSpans(s); !reflect.DeepEqual(got, want) {
+			t.Errorf("MathSpans(%q) = %v, want %v", s, got, want)
+		}
+	}
+	// The healer reads the same: a formula that starts with a number, closed, is not withheld
+	// (v0.5.0 read its first `$` as a price and withheld the closing one).
+	for in, want := range map[string]string{
+		"Sum: $2 + 2 = 4$": "Sum: $2 + 2 = 4$",
+		"Costs $5 and 7$":  "Costs $5 and 7", // the last `$` may still open
+	} {
+		if got := Close(in); got != want {
+			t.Errorf("Close(%q) = %q, want %q", in, got, want)
+		}
+	}
 }
 
 func corpusDocs(t *testing.T) map[string]string {
