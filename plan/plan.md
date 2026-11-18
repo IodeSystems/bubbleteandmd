@@ -223,7 +223,7 @@ Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (br
 - Upstream drafts target chroma/glamour/x only; chroma v2.27.0, glamour v2.0.1, x/ansi v0.11.9 are still the latest (go list 2026-11-12).
 - **risks**: flowdown's TUI target diff colouring (+/-/@@ by first char) is simpler than ours; not a syntax change.
 
-### ◐ Release v0.5.3/v0.6.0: dun-bf tabs bug + flowdown v0.7.1 port (Carl 2026-11-18: "port then ship everything together")
+### ✅ Release v0.6.0 (9be7c5d, pushed + GitHub release 2026-11-18): dun-bf tabs bug + flowdown v0.7.1 port (Carl 2026-11-18: "port then ship everything together")
 - ✅ prompt: "defect" kept (82f0537); pros/cons each own quote outside tabs (82d1ea3); FormsPrinciple wording as flowdown; URL localixai/flowdown (5d29ece).
 - ✅ nested markers merged (see "Marker lines inside content"; repro text made neutral, no private project text).
 - ✅ heal port + parser readings (decisions.md "flowdown v0.7.1 heal port"). Gap: goldmark reads `|\n-|` as a 1-col table (micromark: paragraph), pinned by test.
@@ -231,7 +231,7 @@ Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (br
   inline `$…$` → code span (we had no inline math; v0.7.1 pairing); spec/forms 18/18. Goldens changed: code_*.golden (6). **next**: Carl review, merge.
   ✅ TestMarkerLinesNoShrink (`> [!TABS]\n> #` 4 → 2 lines since 23695b2): fixed in heal, a bare marker in a quote keeps its quote prefix (decisions.md, heal-port entry).
   ✅ TestShowcaseNoShrink without -short (`> [!STEPS]\n1` → `1.`, `1. *` → `1. **First `, `> [!STEPS] The plan\n1` → `1. `): fixed in heal, a held-back marker leaves the frame before it (decisions.md, heal-port entry).
-- ◻ merge all → full suite dev + M1 → tag (minor: syntax change) → dun-bf note.
+- ✅ full suite -short dev box exit 0 (root 885 s), vet clean; M1 skipped (Carl: throughput). dun-bf told (file + message).
 - **risks**: our prompt teaches "after the tabs a `---`" — the new rule parts tabs only before a same-depth heading, so the taught form still ends the tabs.
 
 ### ✅ Marker lines inside content (Carl 2026-11-18; decisions.md "marker lines inside content")
