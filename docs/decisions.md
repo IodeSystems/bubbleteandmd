@@ -539,6 +539,16 @@
     flowdown hid the whole line, and `> [!TABS]\n> #` drew nothing after
     `> [!TABS]\n>` drew the tabs (TestMarkerLinesNoShrink, 4 → 2 lines). A
     line of only `>` and top-level or indented markers: as flowdown.
+    Rule (frame only; Final unchanged): a marker held back leaves the
+    frame before it. Close(text) is Close of text without the held-back
+    characters (quote prefix kept), for a bare block marker, the start of
+    an opener (`1`, `` `` ``, `<de`; we returned it unhealed) and a marker a
+    hidden `*` left bare. So `> [!STEPS]\n1`, `1.`, `1. *` are all ""
+    (as `> [!STEPS]\n`, whose bare form marker is hidden), and
+    `x\n\n> ``` is `x\n` (as `x\n\n>`). Why: TestShowcaseNoShrink
+    without -short: drawn bare, the form marker is taller than the form
+    with its first item (4 → 3 lines), and the frames that hid it and the
+    ones that drew it alternated (2-line drops).
   - Closers before trailing white space: had it for `**`, `~~`, `*`, `_`
     (by dropping the white space); now as v0.7.1: Close sets the tail's
     trailing white space aside, runs every fix, puts it back, so backtick,

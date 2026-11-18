@@ -171,9 +171,20 @@ func TestClose(t *testing.T) {
 	})
 	run(t, "a marker in a quote heals to its quote prefix",
 		pair{"> [!TABS]\n> #", "> [!TABS]"}, pair{"> a\n> -", "> a"},
-		pair{"> > a\n> > ##", "> > a\n"}, pair{"- a\n  -", "- a\n"},
-		// A dropped line is not healed on: the form marker above it stays (TestShowcaseNoShrink).
-		pair{"> [!STEPS]\n1. **", "> [!STEPS]\n"})
+		pair{"> > a\n> > ##", "> > a\n"}, pair{"- a\n  -", "- a\n"})
+	t.Run("a marker held back leaves the frame before it, form marker hidden", func(t *testing.T) {
+		// TestShowcaseNoShrink: `> [!STEPS]\n` hides its bare form marker, and drawn in the
+		// frames after it, the marker was taller than the form with its first item.
+		for _, c := range []struct{ before, marker string }{
+			{"> [!STEPS]\n", "1"}, {"> [!STEPS]\n", "1."}, {"> [!STEPS]\n", "1. *"},
+			{"> [!STEPS]\n", "1. **"}, {"> [!STEPS] The plan\n", "1"},
+			{"> [!STEPS] The plan\n", "1. "}, {"> [!TABS]\n>", " 1"}, {"> [!TABS]\n>", " ``"},
+		} {
+			if got, want := Close(c.before+c.marker), Close(c.before); got != want {
+				t.Errorf("Close(%q) = %q, Close(%q) = %q", c.before+c.marker, got, c.before, want)
+			}
+		}
+	})
 	same(t, "once a word follows the marker, it is drawn",
 		"list:\n\n* a", "# T", "#hashtag", "2024 was")
 	run(t, "completes a construct where the text stops, before a line break or a space it ends in",
@@ -469,8 +480,9 @@ func TestNoShrinkRules(t *testing.T) {
 	run(t, "skips inline fixes inside a closed fence",
 		pair{"a\n\n```\nx\n\ny `z\n```\n", "a\n\n```\nx\n\ny `z\n```\n"},
 		pair{"```\n`\n```\nnow **b", "```\n`\n```\nnow **b**"})
+	// In a quote the prefix stays and is healed on: `x\n\n> ``` is `x\n\n>`.
 	run(t, "hides the start of a fence opener, ordered marker or HTML tag",
-		pair{"x\n\n``", "x\n\n"}, pair{"x\n\n   ~", "x\n\n"}, pair{"x\n\n> ``", "x\n\n"},
+		pair{"x\n\n``", "x\n\n"}, pair{"x\n\n   ~", "x\n\n"}, pair{"x\n\n> ``", "x\n"},
 		pair{"1. a\n\n2", "1. a\n\n"}, pair{"<deta", ""}, pair{"<details>\n<", "<details>\n"},
 		pair{"x\n\n</di", "x\n\n"})
 	same(t, "keeps a whole line or other text", "x\n\n``\n", "x\n\n2x", "<details>", "x\n\n`` y")

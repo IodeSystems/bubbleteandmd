@@ -84,11 +84,13 @@ func closeProse(text string, fenceEnd int) string {
 	if d := dropTrailingBareFormMarker(text); d != text {
 		return d
 	}
+	// A start of an opener or a block marker held back leaves the frame before it came, healed
+	// as that frame is: the text above may end mid-construct (`**bold` on the line before), or
+	// be a form marker with no content yet (`> [!STEPS]\n1` is `> [!STEPS]\n`, which hides the
+	// marker; drawn, it was taller than the form with its first item).
 	if d := dropTrailingPartialOpener(text); d != text {
-		return d
+		return closeProse(d, min(fenceEnd, len(d)))
 	}
-	// The text above a block marker held back may itself end mid-construct (`**bold` on the
-	// line before).
 	if d := dropTrailingBareBlockMarker(text); d != text {
 		return closeProse(d, min(fenceEnd, len(d)))
 	}
@@ -123,14 +125,13 @@ func closeProse(text string, fenceEnd int) string {
 		return text
 	}
 	// What was hidden may leave a marker bare (`- *` is `- `): it is held back as one typed so,
-	// and a quote prefix it leaves (`> - *` is `>`) is healed on as one typed so. A dropped
-	// line is not: the form marker above stays (`> [!STEPS]\n1. **` is `> [!STEPS]\n`).
+	// and what is left healed on as typed so (`> - *` is `>`, `> [!STEPS]\n1. *` is
+	// `> [!STEPS]\n`).
 	healed := head + tail + after
-	d := dropTrailingBareBlockMarker(healed)
-	if d != healed && !strings.HasSuffix(d, "\n") {
+	if d := dropTrailingBareBlockMarker(healed); d != healed {
 		return closeProse(d, min(fenceEnd, len(d)))
 	}
-	return d
+	return healed
 }
 
 // dropTrailingBareBlockMarker holds back a last line that is so far only a block marker (`-`,
@@ -148,8 +149,18 @@ func dropTrailingBareBlockMarker(text string) string {
 	if len(text)-nl > 16 || !bareBlockMarker.MatchString(line) {
 		return text
 	}
-	prefix := strings.TrimRight(quotePrefix.FindString(line), " \t")
-	if strings.HasSuffix(prefix, ">") && strings.TrimRight(line, " \t") != prefix {
+	if strings.TrimRight(line, " \t") == strings.TrimRight(quotePrefix.FindString(line), " \t") {
+		return text[:nl+1]
+	}
+	return dropLastLine(text)
+}
+
+// dropLastLine holds back the last line of text, but for its quote prefix (`> #` is `>`, `> > 1`
+// is `> >`): the frame is then the one before the line's first character after the prefix.
+func dropLastLine(text string) string {
+	nl := strings.LastIndexByte(text, '\n')
+	prefix := strings.TrimRight(quotePrefix.FindString(text[nl+1:]), " \t")
+	if strings.HasSuffix(prefix, ">") {
 		return text[:nl+1] + prefix
 	}
 	return text[:nl+1]
@@ -306,13 +317,13 @@ func hideTrailingLoneDelimiter(tail string) string {
 // dropTrailingPartialOpener hides an unterminated last line that is only the start of a fence
 // opener (two backticks, `~`) or of an ordered list marker (`2`), after any quote prefixes and at
 // most three spaces: as a paragraph it drew taller than the empty fence or list item it becomes.
-// Not in the TS.
+// Not in the TS. In a quote the prefix stays (dropLastLine).
 func dropTrailingPartialOpener(text string) string {
 	nl := strings.LastIndexByte(text, '\n')
 	if !partialOpener.MatchString(text[nl+1:]) {
 		return text
 	}
-	return text[:nl+1]
+	return dropLastLine(text)
 }
 
 // balanceSingleEmphasis balances `*` or `_`, counting only emphasis-capable lone delimiters:

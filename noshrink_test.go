@@ -25,16 +25,24 @@ func runePrefixes(s string) []string {
 // take lines away. No exceptions are listed: a shrink here is a bug.
 // Token prefixes (seed 42) always; every rune prefix without -short, and
 // the corpus documents with forms at token granularity without -short.
+// The short docs are frames that shrank once, at both granularities.
 func TestShowcaseNoShrink(t *testing.T) {
 	b, err := os.ReadFile("cmd/demo/showcase.md")
 	if err != nil {
 		t.Fatal(err)
 	}
 	type doc struct{ name, text string }
-	docs := []doc{{"showcase", string(b)}}
-	ps := []pattern{{"token", corpus.TokenPrefixes}}
-	if !testing.Short() {
-		ps = append(ps, pattern{"rune", runePrefixes})
+	docs := []doc{{"showcase", string(b)},
+		// A held-back `1` or `1.` under a form marker drew the bare marker
+		// taller than the form with its first item (internal/heal).
+		{"steps", "> [!STEPS]\n1. **First 24 hours**\n   *Day 1*\n2. **Second day**\n"},
+		{"steps title", "> [!STEPS] The plan\n1. Install\n2. Run\n"},
+	}
+	byRune := map[string]bool{"showcase": true, "steps": true, "steps title": true}
+	ps := []pattern{{"token", corpus.TokenPrefixes}, {"rune", runePrefixes}}
+	if testing.Short() {
+		delete(byRune, "showcase")
+	} else {
 		for _, d := range corpus.Docs() {
 			if hasForm(d.Text) {
 				docs = append(docs, doc{"doc-" + d.Name, d.Text})
@@ -45,7 +53,7 @@ func TestShowcaseNoShrink(t *testing.T) {
 		for _, w := range []int{40, 79} {
 			for _, d := range docs {
 				for _, pat := range ps {
-					if pat.name == "rune" && d.name != "showcase" {
+					if pat.name == "rune" && !byRune[d.name] {
 						continue
 					}
 					checkNoShrink(t, style, w, d.name, pat, d.text)
