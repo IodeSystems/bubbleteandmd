@@ -175,6 +175,33 @@ func TestMarkerOnlyTakesOneList(t *testing.T) {
 	eq(t, "body", d.Tabs.Panels[0].Body, "One.")
 }
 
+// flowdown v0.7.1 (6ec2a16): a `---` right before a heading of the first
+// tab's depth parts two tabs; it is not drawn. Any other `---` ends them.
+func TestRuleBeforeSameDepthHeadingPartsTabs(t *testing.T) {
+	src := "> [!TABS]\n#### npm\n`npm i jq`\n\n---\n\n#### bun\n`bun add jq`\n\n---\n#### pnpm\n`pnpm add jq`\n\n---\n\nAfter the tabs."
+	d := mustParse(t, src, KindTabs)
+	eq(t, "labels", labels(d.Tabs), []string{"npm", "bun", "pnpm"})
+	eq(t, "bodies", []string{d.Tabs.Panels[0].Body, d.Tabs.Panels[1].Body, d.Tabs.Panels[2].Body},
+		[]string{"`npm i jq`", "`bun add jq`", "`pnpm add jq`"})
+	eq(t, "rest", src[d.End:], "---\n\nAfter the tabs.")
+	// A rule before a deeper or a shallower heading still ends the tabs.
+	for _, src := range []string{
+		"> [!TABS]\n### A\nOne.\n\n---\n\n#### B\nTwo.",
+		"> [!TABS]\n#### A\nOne.\n\n---\n\n### B\nTwo.",
+		"> [!TABS]\n#### A\nOne.\n\n---\n\nText.\n\n#### B\nTwo.",
+	} {
+		d := mustParse(t, src, KindTabs)
+		eq(t, "labels "+src, labels(d.Tabs), []string{"A"})
+		eq(t, "rest "+src, strings.HasPrefix(src[d.End:], "---"), true)
+	}
+	// Tabs quoted whole keep a rule in a panel: only the run after a bare
+	// marker is parted.
+	q := "> [!TABS]\n> #### A\n> One.\n>\n> ---\n>\n> #### B\n> Two."
+	d = mustParse(t, q, KindTabs)
+	eq(t, "quoted labels", labels(d.Tabs), []string{"A", "B"})
+	eq(t, "quoted body", d.Tabs.Panels[0].Body, "One.\n\n---")
+}
+
 // answerFormExamples are dialect.ts ANSWER_FORM_EXAMPLES, the text the prompt shows.
 var answerFormExamples = map[string][]string{
 	"comparison": {"> [!TABS]", "#### PostgreSQL", "> [!PROS]", "- concurrent writes", "", "> [!CONS]", "- needs a server", "", "---"},

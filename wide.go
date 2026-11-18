@@ -296,7 +296,8 @@ func (r *DirectiveRenderer) wideTable(tail string) (t *target, opts ansi.Options
 	if bs := blocks.Split(tail); len(bs) != 1 {
 		return nil, opts, false, nil
 	}
-	if _, math := mathFences(tail); math {
+	// The wide renderer is glamour's: it does not see inline math rewritten.
+	if _, math := mathFences(tail); math || directive.InlineMath(tail) != tail {
 		return nil, opts, false, nil
 	}
 	if _, form := directive.Parse(tail); form {

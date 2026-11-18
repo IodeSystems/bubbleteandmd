@@ -189,7 +189,8 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 		if !ok && !math && !ps[i].diff && t == &r.outer {
 			ps[i].wide = r.wideWidth(src)
 		}
-		if ok || math || ps[i].wide > 0 || ps[i].diff {
+		// src != b.Source: a rewrite (inline math) that md as written lacks.
+		if ok || math || ps[i].wide > 0 || ps[i].diff || src != b.Source {
 			plain = false
 		}
 	}

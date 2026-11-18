@@ -1,0 +1,309 @@
+---
+title: The forms of a reply
+version: 1
+...
+
+# The forms of a reply
+
+flowdown reads GitHub's Markdown and, over it, the forms an agent's reply is made of: a callout,
+steps, tabs, figures, the case for and against, a folded section, sources. Both of flowdown's
+parsers read them: the npm package's and the Rust crate's. This file is what they agree on. Its
+examples are written as CommonMark's are, but what follows the `.` is not HTML: it is the forms
+the text holds, one a line, as both parsers' tests print them.
+
+A form is a quote whose first line is a marker. It is asked for by that marker and never
+guessed; one with nothing it can take stays the quote it was written as, and in any other
+Markdown reader the whole of it is a quote and a list, still readable.
+
+## Markers
+
+The markers, their names written in capitals, are read whatever their case. Both parsers' tests
+read this table and fail when their own list of markers differs from it.
+
+| Marker | Form | What it takes |
+| --- | --- | --- |
+| `[!NOTE]` | callout | the quote |
+| `[!TIP]` | callout | the quote |
+| `[!IMPORTANT]` | callout | the quote |
+| `[!WARNING]` | callout | the quote |
+| `[!CAUTION]` | callout | the quote |
+| `[!STEPS]` | steps | the list after it |
+| `[!TABS]` | tabs | the headings after it, up to a rule or a shallower heading |
+| `[!STATS]` | stats | the list after it |
+| `[!PROS]` | pros | the list after it |
+| `[!CONS]` | cons | the list after it |
+| `[!DETAILS]` | details | the quote |
+| `[!SOURCES]` | sources | the list after it |
+
+## How a form is printed
+
+A line names the form; a callout adds its kind. Then, quoted, its title: the rest of the
+marker's line, or a tab's label. A form that takes a list ends with how many items it took. A
+form inside another is printed under it, two spaces further in; a tab is inside its tabs. A text
+that holds no form prints `(none)`.
+
+## Callouts
+
+GitHub's alerts. The words after the marker title it.
+
+```````````````````````````````` example
+> [!WARNING]
+> The migration locks the table.
+.
+callout warning
+````````````````````````````````
+
+```````````````````````````````` example
+> [!NOTE] Downtime
+> The migration locks the table.
+.
+callout note "Downtime"
+````````````````````````````````
+
+```````````````````````````````` example
+> [!TIP]
+> One.
+
+> [!IMPORTANT]
+> Two.
+
+> [!CAUTION]
+> Three.
+.
+callout tip
+callout important
+callout caution
+````````````````````````````````
+
+A marker is read whatever its case.
+
+```````````````````````````````` example
+> [!warning]
+> Mind the gap.
+.
+callout warning
+````````````````````````````````
+
+A name that is no marker leaves the quote a quote, and so does a marker that is not on the
+quote's first line.
+
+```````````````````````````````` example
+> [!DANGER]
+> Not a form.
+
+> First line.
+> [!NOTE]
+.
+(none)
+````````````````````````````````
+
+## Steps
+
+Stages in order: the numbered list after the marker. It may follow the marker unquoted, as a
+model writes it, or quoted with it.
+
+```````````````````````````````` example
+> [!STEPS] Cut a release
+1. **Run the checks.** Everything CI runs.
+2. **Tag it.** `git tag v1.2.0`
+.
+steps "Cut a release" 2
+````````````````````````````````
+
+```````````````````````````````` example
+> [!STEPS]
+> 1. **One**
+> 2. **Two**
+> 3. **Three**
+.
+steps 3
+````````````````````````````````
+
+A blank line may stand between the marker and its list.
+
+```````````````````````````````` example
+> [!STEPS]
+
+1. **One**
+2. **Two**
+.
+steps 2
+````````````````````````````````
+
+A marker with nothing it can take stays the quote it was written as.
+
+```````````````````````````````` example
+> [!STEPS] Plan
+
+Just a paragraph.
+.
+(none)
+````````````````````````````````
+
+## Tabs
+
+Variants side by side: each heading after the marker is a tab, its text the tab's label, up to a
+rule or a heading shallower than the first.
+
+```````````````````````````````` example
+> [!TABS] Install
+#### macOS
+`brew install jq`
+#### Linux
+`apt install jq`
+
+---
+
+After the tabs.
+.
+tabs "Install"
+  tab "macOS"
+  tab "Linux"
+````````````````````````````````
+
+```````````````````````````````` example
+> [!TABS]
+### One
+a
+### Two
+b
+## Next section
+c
+.
+tabs
+  tab "One"
+  tab "Two"
+````````````````````````````````
+
+A rule right before a heading of the first one's depth parts two tabs rather than ending them:
+models write one between variants. It is not drawn.
+
+```````````````````````````````` example
+> [!TABS]
+#### npm
+`npm i jq`
+
+---
+
+#### bun
+`bun add jq`
+
+---
+#### pnpm
+`pnpm add jq`
+
+---
+
+After the tabs.
+.
+tabs
+  tab "npm"
+  tab "bun"
+  tab "pnpm"
+````````````````````````````````
+
+A tab holds forms of its own: a compared option, its sides.
+
+```````````````````````````````` example
+> [!TABS]
+#### PostgreSQL
+> [!PROS]
+- concurrent writes
+
+> [!CONS]
+- needs a server
+
+#### SQLite
+> [!PROS]
+- no server
+- one file
+
+---
+.
+tabs
+  tab "PostgreSQL"
+    pros 1
+    cons 1
+  tab "SQLite"
+    pros 2
+````````````````````````````````
+
+## Stats
+
+Headline figures: the list after the marker, each item a figure and what it counts.
+
+```````````````````````````````` example
+> [!STATS]
+- **3.1x** faster
+- **42 MB** less memory
+.
+stats 2
+````````````````````````````````
+
+## Pros and cons
+
+The case for and the case against, each the list after its marker.
+
+```````````````````````````````` example
+> [!PROS]
+- typed APIs
+- one binary
+
+> [!CONS]
+- a build step
+.
+pros 2
+cons 1
+````````````````````````````````
+
+## Details
+
+Secondary material, folded under its title: what the quote holds.
+
+```````````````````````````````` example
+> [!DETAILS] Full log
+> The long part, quoted.
+.
+details "Full log"
+````````````````````````````````
+
+## Sources
+
+The pages a reply draws on: the list of links after the marker.
+
+```````````````````````````````` example
+> [!SOURCES]
+- [Page title](https://example.com/page)
+- [Another](https://example.org/)
+.
+sources 2
+````````````````````````````````
+
+## A reply
+
+The forms as a reply holds them, one after another.
+
+```````````````````````````````` example
+The migration takes an hour.
+
+> [!WARNING] Downtime
+> The table is locked while it runs.
+
+> [!STEPS] Run it
+1. **Stop the writers**
+2. **Migrate**
+
+> [!STATS]
+- **1 h** to migrate
+- **0** data lost
+
+> [!SOURCES]
+- [Runbook](https://example.com/runbook)
+.
+callout warning "Downtime"
+steps "Run it" 2
+stats 2
+sources 1
+````````````````````````````````
+
+<!-- END TESTS -->

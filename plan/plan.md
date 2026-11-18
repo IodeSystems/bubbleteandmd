@@ -227,7 +227,9 @@ Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (br
 - ✅ prompt: "defect" kept (82f0537); pros/cons each own quote outside tabs (82d1ea3); FormsPrinciple wording as flowdown; URL localixai/flowdown (5d29ece).
 - ✅ nested markers merged (see "Marker lines inside content"; repro text made neutral, no private project text).
 - ✅ heal port + parser readings (decisions.md "flowdown v0.7.1 heal port"). Gap: goldmark reads `|\n-|` as a 1-col table (micromark: paragraph), pinned by test.
-- ◻ after nested merge: `---` between same-depth tab headings parts tabs (6ec2a16); `$…$` math with a math-only sign (core/dollars.ts); run spec/forms/spec.txt.
+- ◐ syntax port (branch flowdown-071-syntax; decisions.md "flowdown v0.7.1 syntax port"): `---` parts same-depth tabs (+ Splitter reopens above a rule block);
+  inline `$…$` → code span (we had no inline math; v0.7.1 pairing); spec/forms 18/18. Goldens changed: code_*.golden (6). **next**: Carl review, merge.
+  ❓ TestMarkerLinesNoShrink fails on main 23695b2 too (`> [!TABS]\n>` → `> [!TABS]\n> #`: 4 → 2 lines; heal now holds `> #`): widen knownShrink or fix heal — Carl's call.
 - ◻ merge all → full suite dev + M1 → tag (minor: syntax change) → dun-bf note.
 - **risks**: our prompt teaches "after the tabs a `---`" — the new rule parts tabs only before a same-depth heading, so the taught form still ends the tabs.
 

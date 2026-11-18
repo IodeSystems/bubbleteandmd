@@ -566,3 +566,56 @@
   model text. All four pinned in internal/nest TestMicromarkReadings
   (the gap as goldmark reads it).
   Tests: heal TestClose (TS cases ported), TestNoShrinkRules updated.
+
+- 2026-11-18 (flowdown v0.7.1 syntax port, Carl approved): 6ec2a16 and
+  15d1213 against our parser.
+  - Rule between tabs: a `---` right before a heading of the first tab
+    heading's depth parts two tabs; any other `---` (before a deeper or a
+    shallower heading, before text, at the end) still ends `[!TABS]`. Only
+    the run after a bare `> [!TABS]` is parted (flowdown's `following`);
+    tabs quoted whole keep a rule in the panel, as flowdown's do. The
+    parting rule is in the form (its End) and not drawn (the panel body
+    stops before it). blocks.group's tabsEnd reads the line under the rule
+    (belowRule), so the tabs stay one block. Streaming: Splitter kept all
+    blocks but the last two; at `---\n\n#` (a partial heading of another
+    depth) the tabs, the rule and the heading were three blocks, the tabs
+    went final, and `#### B` could not join them (Frame != whole render;
+    found by checkStream). Splitter now also reopens the block above a
+    block that opens with a rule. flowdown's splitter keeps REOPENED = 2
+    (not checked whether it shows the same). The prompt's "after them a
+    `---`, then one line on when to pick which" still ends the tabs (text
+    under the rule; TestEveryPromptExampleIsItsForm). Tests: forms_test
+    TestRuleBeforeSameDepthHeadingPartsTabs, blocks_test TestSplitCases,
+    tabsparted_test.go (renders as the tabs without rules, streamed;
+    no-shrink; one Doc stop per tabs), testdata/directives/tabsparted.md
+    (new goldens; IDs/keys tests read it too).
+  - Inline math: we had none. Inline `$…$` rendered as glamour text (`_`
+    and `*` in a formula read as emphasis); only heal knew which `$` pair
+    (to withhold a formula being typed). Now internal/directive InlineMath
+    (in Prepare, after MathFences) rewrites a formula's two `$` as
+    backticks: a code span of its TeX source, as `$$` formulas show as
+    code. Same length, so no shifts and form keys do not move. Which `$`
+    pair is heal.MathSpans, a port of literalDollars with v0.7.1's
+    isLiteralDollar: a price-looking `$` opens a formula when a `$` of no
+    such look closes it in the paragraph, the span holds no other `$`, and
+    it holds one of `= ^ _ \ { } < >`. `$5 and $10` and `pay $5 now and 7$
+    later` stay text; `$2 + 2 = 4$` is math; `From $5 for $n^2$` gives
+    `n^2`. Read only within one paragraph, heading or table cell as
+    goldmark parses it, code spans and raw HTML blanked; code and HTML
+    blocks not read. Not rewritten: a formula that holds a backtick or has
+    one right before or after it. heal reads the same rule
+    (inlineMathClose skips a `$` by its look only): `Sum: $2 + 2 = 4$` is
+    no longer cut to `Sum: $2 + 2 = 4` while streaming. notty: glamour
+    draws inline code with no mark, so a formula shows as its bare TeX
+    (`a^2`). A wide table that holds a formula streams through the
+    DirectiveRenderer, not the wide glamour target (which does not see the
+    rewrite). Goldens changed: testdata/golden/docs/code_*.golden (6
+    files, the line `Inline $a^2$ and $5 money.`). Tests:
+    inlinemath_test.go (both packages), heal TestMathSpans.
+  - Shared corpus: spec/forms/spec.txt vendored in testdata/flowdown-spec
+    (with flowdown's MIT licence). internal/directive
+    TestFlowdownFormsSpec prints each example's forms as test/forms.ts does
+    (the forms Parse finds per block after Prepare, bodies after
+    BodyForms); TestFlowdownFormsSpecMarkers checks the markers table. 18
+    of 18 pass, none skipped: no example has a marker line inside content
+    (our deviation), and `> First line.\n> [!NOTE]` is `(none)` in both.

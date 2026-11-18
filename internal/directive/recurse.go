@@ -72,12 +72,13 @@ func (s Shifts) Raw(rel int) int {
 }
 
 // Prepare rewrites one block as the renderer reads it: SplitQuotes, then
-// MathFences. math reports a `$$` formula. IDs and the renderer both read
-// forms from src, so their keys agree.
+// MathFences, then InlineMath (keeps every offset). math reports a `$$`
+// formula. IDs and the renderer both read forms from src, so their keys
+// agree.
 func Prepare(block string) (src string, math bool, sh Shifts) {
 	src, q := SplitQuotes(block)
 	src, math, m := MathFences(src)
-	return src, math, Shifts{q, m}
+	return InlineMath(src), math, Shifts{q, m}
 }
 
 // SplitQuotes puts a blank line before each marker line inside a quote that
