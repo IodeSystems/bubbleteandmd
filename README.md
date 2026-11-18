@@ -26,7 +26,10 @@ open code fence, a link without its `)`) shows raw until it closes.
    model output renders in both: `> [!NOTE]`-style callouts, `> [!STEPS]`,
    `> [!TABS]` + `####` panels, `> [!STATS]`, `> [!PROS]`/`> [!CONS]`,
    `> [!DETAILS]`, `> [!SOURCES]`, ```` ```tree ```` fences, `title="…"` on
-   code fences, GFM task lists. Drawn with lipgloss. Mermaid and math show
+   code fences, GFM task lists. One form beyond it (Carl 2026-11-18): a
+   marker line inside a form's content (`[!PROS]` in a tab panel, `>
+   [!CONS]` under a `> [!PROS]` list) starts that form too
+   (docs/decisions.md, "marker lines inside content"). Drawn with lipgloss. Mermaid and math show
    as code. ```` ```diff ```` / ```` ```patch ```` fences: added and
    removed lines on a green/red background tint, changed words of a
    removed/added pair stronger, hunk and file headers faint, one line per

@@ -1,0 +1,30 @@
+
+  Use a cache · Add an index · Le…
+                                  
+  ▸ Use a cache ──────────────────
+  + Pros                          
+  • One-line change, no schema    
+    change                        
+  • cache/ is not needed to run   
+    the app                       
+                                  
+  − Cons                          
+  • Stale reads after a write     
+                                  
+  ▸ Add an index ─────────────────
+  + Pros                          
+  • Keeps reads exact             
+  • Helps every query on the      
+    column                        
+                                  
+  − Cons                          
+  • Slower writes                 
+                                  
+  ▸ Leave as is ──────────────────
+  + Pros                          
+  • Nothing to do                 
+                                  
+  − Cons                          
+  • Slow page loads stay, for     
+    every user                    
+

@@ -225,11 +225,20 @@ Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (br
 
 ### ◐ Release v0.5.3/v0.6.0: dun-bf tabs bug + flowdown v0.7.1 port (Carl 2026-11-18: "port then ship everything together")
 - ✅ prompt: "defect" kept (82f0537); pros/cons each own quote outside tabs (82d1ea3); FormsPrinciple wording as flowdown; URL localixai/flowdown (5d29ece).
-- ◐ nested markers: a marker line inside a tab/quote body starts that form (Carl: "the tab is just recursive content"; deviation from flowdown). Worktree branch, tests running.
-- ◐ heal port (flowdown heal.ts v0.5.0..v0.7.1) + 4 parser readings (654bfee) vs goldmark. Worktree branch.
+- ✅ nested markers merged (see "Marker lines inside content"; repro text made neutral, no private project text).
+- ✅ heal port + parser readings (decisions.md "flowdown v0.7.1 heal port"). Gap: goldmark reads `|\n-|` as a 1-col table (micromark: paragraph), pinned by test.
 - ◻ after nested merge: `---` between same-depth tab headings parts tabs (6ec2a16); `$…$` math with a math-only sign (core/dollars.ts); run spec/forms/spec.txt.
 - ◻ merge all → full suite dev + M1 → tag (minor: syntax change) → dun-bf note.
 - **risks**: our prompt teaches "after the tabs a `---`" — the new rule parts tabs only before a same-depth heading, so the taught form still ends the tabs.
+
+### ✅ Marker lines inside content (Carl 2026-11-18; decisions.md "marker lines inside content")
+dun-bf: `[!PROS]`/`[!CONS]` lines in a `> [!TABS]` panel printed as text.
+- ✅ internal/directive/recurse.go: SplitQuotes (form quote split at a marker line; not tabs) + BodyForms (marker line in a body opens a quote).
+  All marker kinds. Keys stay raw offsets (Shifts). Tests: recurse_test.go, markerlines_test.go, testdata/directives/{markerlines,tabsproscons}.md.
+- **next**: Carl review; dun-bf bump once tagged.
+- **risks**: shrinks while streaming pros/cons in tabs (taught forms too: side-by-side pairing, `#`-only heading line) — not fixed;
+  a lazy (unquoted) line in a form quote stops the split scan (conservative); a blank line ends a body run (loose list under a marker line splits).
+- **blocking decisions**: Carl: a callout marker line in a callout quote = sibling (chosen) vs nested; marker in a plain quote (not split, chosen).
 
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.

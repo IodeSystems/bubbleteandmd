@@ -121,21 +121,22 @@ func TestZeroStateGolden(t *testing.T) {
 }
 
 // formsIn walks src as directive.IDs does and returns each form by key.
-func formsIn(block string, at int, parent string, out map[string]directive.Directive) {
-	src, _, shifts := directive.MathFences(block)
+func formsIn(block string, at int, bodyShifts []directive.MathShift, parent string, out map[string]directive.Directive) {
+	src, _, shifts := directive.Prepare(block)
 	for pos := 0; ; {
 		d, ok := directive.Parse(src[pos:])
 		if !ok {
 			return
 		}
-		key := strconv.Itoa(at + directive.RawOffset(shifts, pos+d.Start))
+		key := strconv.Itoa(directive.RawOffset(bodyShifts, at+shifts.Raw(pos+d.Start)))
 		if parent != "" {
 			key = parent + "@" + key
 		}
 		out[key] = d
 		body := func(md, slot string) {
+			md, sh := directive.BodyForms(md)
 			for _, b := range blocks.Split(md) {
-				formsIn(b.Source, b.Offset, key+"/"+slot, out)
+				formsIn(b.Source, b.Offset, sh, key+"/"+slot, out)
 			}
 		}
 		if d.After != "" {
@@ -171,7 +172,7 @@ func docForms(t *testing.T, doc string) (map[string]directive.Directive, []direc
 	forms := map[string]directive.Directive{}
 	var ids []directive.FormID
 	for _, b := range blocks.Split(doc) {
-		formsIn(b.Source, b.Offset, "", forms)
+		formsIn(b.Source, b.Offset, nil, "", forms)
 		ids = append(ids, directive.IDs(b.Source, b.Offset)...)
 	}
 	if len(forms) != len(ids) {

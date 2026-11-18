@@ -487,3 +487,37 @@
   read. Tests: internal/nest (caps, text kept, same tree under the caps),
   nest_test.go (each form at 100/1000/10000 levels and 100 KB, emphasis
   ×50000, streamed ×1000; budget 120 s each).
+- 2026-11-18 (Carl, a form beyond flowdown): marker lines inside content.
+  "We should support the nested — as the tab is just recursive content."
+  A deviation from flowdown 0.6.0, which opens a container only when the
+  marker is the first paragraph of a blockquote
+  (core/remark-answer-containers.ts:288-291). Case (dun-bf): a model wrote
+  `[!PROS]`/`[!CONS]` lines straight into a `> [!TABS]` panel; they printed
+  as text, and `[!CONS]` became a lazy line of the list item above it
+  (CommonMark). Rule, one for every marker kind (callouts and containers;
+  internal/directive/recurse.go): a line that is a marker alone, with its
+  title (`[!PROS]`, `[!NOTE] Title`), at column 0, outside code fences,
+  starts that form as it would at the start of a quote. Two places:
+  (1) SplitQuotes, per block (top level and in bodies): in a quote that
+  opens with a marker other than `[!TABS]` (tabs content is panels), a
+  later marker line at the quote's own level ends the quote and opens the
+  next (a blank line is put before it). Quotes are goldmark's top-level
+  blockquotes (`>` lines in an HTML block are not one: fuzz found that);
+  the scan of a quote stops at its first lazy line. (2) BodyForms, per form body (tab
+  panel, callout or details body, item, After): a marker line opens a
+  quote of it and the lines under it up to a blank line or the next marker
+  line. A pros and a cons then pair as two quotes do. Not changed: a
+  marker mid-line; a line indented or in a fence; a plain quote (first
+  line not a marker); top-level unquoted text (`[!PROS]` there stays text,
+  as written). So `> [!PROS]\n> - a\n> [!CONS]\n> - b`, the same under
+  `> > ` in a panel, and the lines straight in a panel render as the
+  taught forms do, byte-equal (markerlines_test.go). The rewrite is the
+  renderer's only (as `$$` → ```math): the stored source keeps what was
+  written. Form keys stay offsets in the text as written: Prepare (split,
+  then MathFences) and BodyForms return shifts; IDs and the renderer both
+  map back through them. A callout's marker line splits its quote: `>
+  [!NOTE]\n> x\n> [!TIP]\n> y` is a note and a tip, one after the other,
+  not a tip inside the note. Streaming: the shrinks these inputs show are
+  ones the taught forms show too (a cons's first item sets the sides side
+  by side; a `#`-only line draws as an empty heading before it becomes a
+  panel heading), TestMarkerLinesNoShrink fails on any other.

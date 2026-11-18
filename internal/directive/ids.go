@@ -39,22 +39,23 @@ func (f FormID) Interactive() bool {
 // again after the form's End. Bodies of callouts, folded sections, tabs,
 // steps and pros and cons are read the same way, after blocks.Split.
 func IDs(block string, offset int) []FormID {
-	return idsIn(block, offset, "", 0)
+	return idsIn(block, offset, nil, "", 0)
 }
 
-// idsIn reads block, which starts at byte at of its body. parent is the Key of
-// the form the body belongs to; base is that form's Offset.
-// Forms are read in MathFences(block), as the renderer reads them; offsets
-// are in block as written (RawOffset).
-func idsIn(block string, at int, parent string, base int) []FormID {
-	src, _, shifts := MathFences(block)
+// idsIn reads block, which starts at byte at of its body as BodyForms
+// rewrote it (bodyShifts; nil at top level). parent is the Key of the form
+// the body belongs to; base is that form's Offset.
+// Forms are read in Prepare(block), as the renderer reads them; offsets
+// are in the text as written (Shifts.Raw, RawOffset).
+func idsIn(block string, at int, bodyShifts []MathShift, parent string, base int) []FormID {
+	src, _, shifts := Prepare(block)
 	var out []FormID
 	for pos := 0; ; {
 		d, ok := Parse(src[pos:])
 		if !ok {
 			return out
 		}
-		rel := at + RawOffset(shifts, pos+d.Start)
+		rel := RawOffset(bodyShifts, at+shifts.Raw(pos+d.Start))
 		id := FormID{Key: strconv.Itoa(rel), Offset: base + rel, Kind: d.Kind, Parent: parent}
 		if parent != "" {
 			id.Key = parent + "@" + id.Key
@@ -105,11 +106,13 @@ func bodies(d Directive, id FormID) []FormID {
 	return out
 }
 
-// body reads the forms in one body, split into blocks as the renderer does.
+// body reads the forms in one body, BodyForms then split into blocks as the
+// renderer does.
 func body(md string, parent FormID, slot string) []FormID {
 	var out []FormID
+	md, sh := BodyForms(md)
 	for _, b := range blocks.Split(md) {
-		out = append(out, idsIn(b.Source, b.Offset, parent.Key+"/"+slot, parent.Offset)...)
+		out = append(out, idsIn(b.Source, b.Offset, sh, parent.Key+"/"+slot, parent.Offset)...)
 	}
 	return out
 }
