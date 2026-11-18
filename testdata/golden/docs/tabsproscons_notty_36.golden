@@ -1,30 +1,30 @@
 
-  Drop the archive note · Redact …
+  Use a cache · Add an index · Le…
                                   
-  ▸ Drop the archive note ────────
+  ▸ Use a cache ──────────────────
   + Pros                          
-  • One-line change, no history   
-    rewrite                       
-  • docs/archive/ is not needed to
-    run VDS                       
+  • One-line change, no schema    
+    change                        
+  • cache/ is not needed to run   
+    the app                       
                                   
   − Cons                          
-  • Loses a category case study   
+  • Stale reads after a write     
                                   
-  ▸ Redact VIN + detailIds ───────
+  ▸ Add an index ─────────────────
   + Pros                          
-  • Keeps the analytical          
-    conclusion                    
-  • Teeth in the privacy test     
+  • Keeps reads exact             
+  • Helps every query on the      
+    column                        
                                   
   − Cons                          
-  • Six substitutions in one file 
+  • Slower writes                 
                                   
-  ▸ Push as is ───────────────────
+  ▸ Leave as is ──────────────────
   + Pros                          
   • Nothing to do                 
                                   
   − Cons                          
-  • Real VIN and five tow records 
-    in a new repo, permanently    
+  • Slow page loads stay, for     
+    every user                    
 

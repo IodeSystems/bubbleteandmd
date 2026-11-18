@@ -1,20 +1,20 @@
 
-  Drop the archive note · Redact VIN + detailIds · Push as is             
+  Use a cache · Add an index · Leave as is                                
                                                                           
-  ▸ Drop the archive note ────────────────────────────────────────────────
+  ▸ Use a cache ──────────────────────────────────────────────────────────
   + Pros                                − Cons                            
-  • One-line change, no history         • Loses a category case study     
-    rewrite                                                               
-  • docs/archive/ is not needed to                                        
-    run VDS                                                               
+  • One-line change, no schema          • Stale reads after a write       
+    change                                                                
+  • cache/ is not needed to run the                                       
+    app                                                                   
                                                                           
-  ▸ Redact VIN + detailIds ───────────────────────────────────────────────
+  ▸ Add an index ─────────────────────────────────────────────────────────
   + Pros                                − Cons                            
-  • Keeps the analytical conclusion     • Six substitutions in one file   
-  • Teeth in the privacy test                                             
+  • Keeps reads exact                   • Slower writes                   
+  • Helps every query on the column                                       
                                                                           
-  ▸ Push as is ───────────────────────────────────────────────────────────
+  ▸ Leave as is ──────────────────────────────────────────────────────────
   + Pros                                − Cons                            
-  • Nothing to do                       • Real VIN and five tow records in
-                                          a new repo, permanently         
+  • Nothing to do                       • Slow page loads stay, for every 
+                                          user                            
 

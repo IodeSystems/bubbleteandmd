@@ -1,20 +1,20 @@
 > [!TABS]
-> #### Drop the archive note
+> #### Use a cache
 > [!PROS]
-> - One-line change, no history rewrite
-> - `docs/archive/` is not needed to run VDS
+> - One-line change, no schema change
+> - `cache/` is not needed to run the app
 > [!CONS]
-> - Loses a category case study
+> - Stale reads after a write
 >
-> #### Redact VIN + detailIds
+> #### Add an index
 > [!PROS]
-> - Keeps the analytical conclusion
-> - Teeth in the privacy test
+> - Keeps reads exact
+> - Helps every query on the column
 > [!CONS]
-> - Six substitutions in one file
+> - Slower writes
 >
-> #### Push as is
+> #### Leave as is
 > [!PROS]
 > - Nothing to do
 > [!CONS]
-> - Real VIN and five tow records in a new repo, permanently
+> - Slow page loads stay, for every user

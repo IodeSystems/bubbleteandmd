@@ -1,12 +1,11 @@
 
-  Drop the archive note · Nested …
+  Use a cache · Nested quote · Fo…
                                   
-  ▸ Drop the archive note ────────
+  ▸ Use a cache ──────────────────
   + Pros                          
   • One-line change, no history   
     rewrite                       
-  • docs/archive/ is not needed to
-    run it                        
+  • cache/ is not needed to run it
                                   
   − Cons                          
   • Loses a category case study   

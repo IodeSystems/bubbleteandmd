@@ -15,8 +15,8 @@ import (
 // markerLineCases: marker lines inside content (docs/decisions.md, "marker
 // lines inside content"), each with the taught form it renders as.
 var markerLineCases = []struct{ name, in, taught string }{
-	{"tabs", "> [!TABS]\n> #### Drop the archive note\n> [!PROS]\n> - One-line change, no history rewrite\n> [!CONS]\n> - Loses a category case study\n>\n> #### Push as is\n> [!PROS]\n> - Nothing to do\n> [!CONS]\n> - Real VIN and five tow records in a new repo, permanently\n",
-		"> [!TABS]\n> #### Drop the archive note\n> > [!PROS]\n> > - One-line change, no history rewrite\n>\n> > [!CONS]\n> > - Loses a category case study\n>\n> #### Push as is\n> > [!PROS]\n> > - Nothing to do\n>\n> > [!CONS]\n> > - Real VIN and five tow records in a new repo, permanently\n"},
+	{"tabs", "> [!TABS]\n> #### Use a cache\n> [!PROS]\n> - One-line change, no schema change\n> [!CONS]\n> - Stale reads after a write\n>\n> #### Leave as is\n> [!PROS]\n> - Nothing to do\n> [!CONS]\n> - Slow page loads stay, for every user\n",
+		"> [!TABS]\n> #### Use a cache\n> > [!PROS]\n> > - One-line change, no schema change\n>\n> > [!CONS]\n> > - Stale reads after a write\n>\n> #### Leave as is\n> > [!PROS]\n> > - Nothing to do\n>\n> > [!CONS]\n> > - Slow page loads stay, for every user\n"},
 	{"tab nested quote", "> [!TABS]\n> #### A\n> > [!PROS]\n> > - a\n> > [!CONS]\n> > - b\n>\n> #### B\n> text\n",
 		"> [!TABS]\n> #### A\n> > [!PROS]\n> > - a\n>\n> > [!CONS]\n> > - b\n>\n> #### B\n> text\n"},
 	{"one quote", "Intro.\n\n> [!PROS]\n> - a\n> [!CONS]\n> - b\n\nAfter.\n",

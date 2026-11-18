@@ -1,8 +1,8 @@
 > [!TABS] Options
-> #### Drop the archive note
+> #### Use a cache
 > [!PROS]
 > - One-line change, no history rewrite
-> - `docs/archive/` is not needed to run it
+> - `cache/` is not needed to run it
 > [!CONS]
 > - Loses a category case study
 >
