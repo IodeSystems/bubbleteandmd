@@ -229,7 +229,7 @@ Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (br
 - ✅ heal port + parser readings (decisions.md "flowdown v0.7.1 heal port"). Gap: goldmark reads `|\n-|` as a 1-col table (micromark: paragraph), pinned by test.
 - ◐ syntax port (branch flowdown-071-syntax; decisions.md "flowdown v0.7.1 syntax port"): `---` parts same-depth tabs (+ Splitter reopens above a rule block);
   inline `$…$` → code span (we had no inline math; v0.7.1 pairing); spec/forms 18/18. Goldens changed: code_*.golden (6). **next**: Carl review, merge.
-  ❓ TestMarkerLinesNoShrink fails on main 23695b2 too (`> [!TABS]\n>` → `> [!TABS]\n> #`: 4 → 2 lines; heal now holds `> #`): widen knownShrink or fix heal — Carl's call.
+  ✅ TestMarkerLinesNoShrink (`> [!TABS]\n> #` 4 → 2 lines since 23695b2): fixed in heal, a bare marker in a quote keeps its quote prefix (decisions.md, heal-port entry).
 - ◻ merge all → full suite dev + M1 → tag (minor: syntax change) → dun-bf note.
 - **risks**: our prompt teaches "after the tabs a `---`" — the new rule parts tabs only before a same-depth heading, so the taught form still ends the tabs.
 

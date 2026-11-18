@@ -29,6 +29,7 @@ var (
 	partialOpener  = regexp.MustCompile("^(?: {0,3}>[ \t]?)* {0,3}(?:`{1,2}|~{1,2}|[0-9]{1,9}|</?[A-Za-z][A-Za-z0-9-]*|</?)$")
 	// bareBlockMarker is flowdown v0.7.1's BARE_BLOCK_MARKER.
 	bareBlockMarker = regexp.MustCompile(`^[ \t]*(?:>[ \t]?)*(?:[-*+=]+|#{1,6}|\d{1,9}[.)]?|>)[ \t]*$`)
+	quotePrefix     = regexp.MustCompile(`^[ \t]*(?:>[ \t]?)*`)
 	bulletLine      = regexp.MustCompile(`^ {0,3}[-*+][ \t]+\S`)
 )
 
@@ -121,19 +122,33 @@ func closeProse(text string, fenceEnd int) string {
 	if tail == orig {
 		return text
 	}
-	// What was hidden may leave a marker bare (`- *` is `- `): it is held back as one typed so.
-	return dropTrailingBareBlockMarker(head + tail + after)
+	// What was hidden may leave a marker bare (`- *` is `- `): it is held back as one typed so,
+	// and a quote line it leaves (`> - *` is `>`) as one typed so.
+	healed := head + tail + after
+	if d := dropTrailingBareBlockMarker(healed); d != healed {
+		return closeProse(d, min(fenceEnd, len(d)))
+	}
+	return healed
 }
 
 // dropTrailingBareBlockMarker holds back a last line that is so far only a block marker (`-`,
 // `*`, `+`, `##`, `12.`, `>`, `> -`) or a run of `-` or `=`, until the first word of what it
 // opens. Drawn at once it is an empty list item, heading or quote; and a `-` under a paragraph
 // makes the paragraph a setext heading until the item's text arrives. From flowdown v0.7.1.
+//
+// Not flowdown: in a quote only the marker is held back, and the quote prefix stays (`> #` is
+// `>`, `> > ##` is `> >`), so the frame is the one before the marker came (`> [!TABS]\n>`),
+// which the caller heals on. A line of only quote prefixes is held back whole, as flowdown.
 func dropTrailingBareBlockMarker(text string) string {
 	nl := strings.LastIndexByte(text, '\n')
 	// A marker is short: a long last line is read no further.
-	if len(text)-nl > 16 || !bareBlockMarker.MatchString(text[nl+1:]) {
+	line := text[nl+1:]
+	if len(text)-nl > 16 || !bareBlockMarker.MatchString(line) {
 		return text
+	}
+	prefix := strings.TrimRight(quotePrefix.FindString(line), " \t")
+	if strings.HasSuffix(prefix, ">") && strings.TrimRight(line, " \t") != prefix {
+		return text[:nl+1] + prefix
 	}
 	return text[:nl+1]
 }

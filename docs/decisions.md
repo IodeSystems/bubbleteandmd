@@ -533,6 +533,12 @@
     frame, and `-` under a paragraph drew it as a setext heading. We had
     digits, `>`/`> ` and a lone `*`/`_`; `- *` now gives "" (was `- `),
     `1. **First**\n   *` gives `1. **First**\n` (was with `   `).
+    Deviation (frame only; Final unchanged): in a quote the marker is held
+    back and the quote prefix kept (`> #` → `>`, `> > ##` → `> >`, `> -
+    *` → `>`), then healed on, so the frame is the one before the marker:
+    flowdown hid the whole line, and `> [!TABS]\n> #` drew nothing after
+    `> [!TABS]\n>` drew the tabs (TestMarkerLinesNoShrink, 4 → 2 lines). A
+    line of only `>` and top-level or indented markers: as flowdown.
   - Closers before trailing white space: had it for `**`, `~~`, `*`, `_`
     (by dropping the white space); now as v0.7.1: Close sets the tail's
     trailing white space aside, runs every fix, puts it back, so backtick,

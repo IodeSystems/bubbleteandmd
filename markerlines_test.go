@@ -84,6 +84,10 @@ func TestMarkerLinesNoShrink(t *testing.T) {
 	for _, c := range markerLineCases {
 		docs[c.name] = c.in
 	}
+	// Bare block markers in a quote and a tab panel: heal holds back the marker only, not
+	// its quote prefix (docs/decisions.md, "flowdown v0.7.1 heal port").
+	docs["quote markers"] = "> Intro\n> - a\n> - b\n> 1. c\n> ## H\n> > nested\n> > ## d\n> > - e\n"
+	docs["panel markers"] = "> [!TABS]\n> ## A\n> - a\n> 1. b\n> ## B\n> text\n"
 	known := 0
 	for _, style := range []string{"dark", "notty"} {
 		for _, w := range []int{40, 79} {

@@ -156,6 +156,22 @@ func TestClose(t *testing.T) {
 		pair{"Some paragraph text.\n-", "Some paragraph text.\n"},
 		pair{"Some paragraph text.\n===", "Some paragraph text.\n"},
 		pair{"Some **bold\n-", "Some **bold**\n"})
+	t.Run("in a quote only the marker is held back: the frame is the one before it", func(t *testing.T) {
+		// Not flowdown, which hides the whole line: `> [!TABS]\n> #` drew nothing, the frame
+		// before it the tabs (TestMarkerLinesNoShrink).
+		for _, c := range []struct{ before, marker string }{
+			{"> [!TABS]\n>", " #"}, {"> a\n>", " -"}, {"> a\n>", " 1."}, {"> a\n>", " - *"},
+			{"> > a\n> >", " ##"}, {"> > a\n> >", " -"}, {"> a\n  >", " -"},
+			{"> [!TABS]\n> ## A\n> x\n>", " -"}, {"> [!TABS]\n> ## A\n> > [!PROS]\n> >", " -"},
+		} {
+			if got, want := Close(c.before+c.marker), Close(c.before); got != want {
+				t.Errorf("Close(%q) = %q, Close(%q) = %q", c.before+c.marker, got, c.before, want)
+			}
+		}
+	})
+	run(t, "a marker in a quote heals to its quote prefix",
+		pair{"> [!TABS]\n> #", "> [!TABS]"}, pair{"> a\n> -", "> a"},
+		pair{"> > a\n> > ##", "> > a\n"}, pair{"- a\n  -", "- a\n"})
 	same(t, "once a word follows the marker, it is drawn",
 		"list:\n\n* a", "# T", "#hashtag", "2024 was")
 	run(t, "completes a construct where the text stops, before a line break or a space it ends in",
