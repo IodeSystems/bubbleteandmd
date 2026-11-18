@@ -487,3 +487,47 @@
   read. Tests: internal/nest (caps, text kept, same tree under the caps),
   nest_test.go (each form at 100/1000/10000 levels and 100 KB, emphasis
   ×50000, streamed ×1000; budget 120 s each).
+- 2026-11-18 (flowdown v0.7.1 heal port, Carl approved): core/heal.ts
+  v0.5.0..v0.7.1 (72542f8, 9babcc0, 654bfee) against internal/heal. Frame
+  only; Final unchanged.
+  - Bare block marker held back: ported (BARE_BLOCK_MARKER, last line
+    ≤ 15 bytes). `-`, `* `, `+`, `##`, `1.`, `12)`, `>`, `> -`, `===` as the
+    last line wait for their first word; the text above is then healed
+    (`Some **bold\n-` → `Some **bold**\n`), and a line a fix left bare
+    (`- *` → `- `) is held too. Why: an empty item/heading/quote drew for a
+    frame, and `-` under a paragraph drew it as a setext heading. We had
+    digits, `>`/`> ` and a lone `*`/`_`; `- *` now gives "" (was `- `),
+    `1. **First**\n   *` gives `1. **First**\n` (was with `   `).
+  - Closers before trailing white space: had it for `**`, `~~`, `*`, `_`
+    (by dropping the white space); now as v0.7.1: Close sets the tail's
+    trailing white space aside, runs every fix, puts it back, so backtick,
+    link and image fixes get it too (`Run \`npm i\n` → `` `npm i`\n ``;
+    `[a](u\n` → `[a](u)\n`; before: the closer after the `\n`). Kept
+    white space draws nothing at the end of a paragraph. Our lone-`*`/`_`
+    hide applies only when no white space followed (`a stray * ` is text).
+  - Fence closed at the opener's indent: already had (2026-11-11), plus
+    the quote prefix.
+  - Last paragraph starts at its last bullet line: ported. Perf matters
+    less here (Stream heals only the last block, and glamour's render of
+    that block costs more than heal), but it is also a reading fix: a
+    bullet line ends the paragraph above, so `- 2*3\n- *it` now closes
+    `*it`. fenceEnd still bounds it.
+  - Badge `[![a](s)](h)`: ported (9babcc0). A partial badge hides its
+    `[` with the partial image; `[![a](s)` / `[![a](s)]` draws as the
+    image; the link close accepts an image as its text; a bare `![alt]`
+    at the end is hidden.
+  - `)` run after a bare address (bb9ec38): not applicable. It fixed
+    flowdown's own inline parser; ours is goldmark's linkify, measured
+    linear: 160000 `)` after `www.a.com` 1.1 ms, after `https://a.com/x`
+    12 ms, after `https://a.com/(` 20 ms (parse only, nest.New).
+  Parser readings (654bfee, matched to micromark), goldmark via nest.New:
+  (1) blank line after indented code in an item → loose: agrees; (2) a
+  definition after a blank line in an item → loose (example 317): agrees;
+  (3) `b\n- |` and `a | b\n- | -` are paragraph + list: agrees; (4) a lone
+  `|` header: differs, goldmark reads `|\n-|` as a one-column table,
+  micromark as a paragraph. Gap, not fixed: goldmark's table is a
+  paragraph transformer; skipping it needs a wrapped transformer in
+  nest.New, and tablehold/heal's table rules would have to agree. Rare in
+  model text. All four pinned in internal/nest TestMicromarkReadings
+  (the gap as goldmark reads it).
+  Tests: heal TestClose (TS cases ported), TestNoShrinkRules updated.
