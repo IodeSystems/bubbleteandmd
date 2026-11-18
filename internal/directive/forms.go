@@ -142,22 +142,24 @@ func (d *doc) markedBody(mk marker) (title, body string) {
 // A quote holding only the marker takes the blocks right after it; end is the
 // index of the first top-level node it did not take.
 func (d *doc) container(i int, mk marker, inner *doc) (f Directive, end int, ok bool) {
-	content, cs, end := inner.top[1:], inner, i+1
+	content, cs, end, after := inner.top[1:], inner, i+1, false
 	if len(content) == 0 {
-		content, cs = d.following(mk.kind, i+1), d
+		content, cs, after = d.following(mk.kind, i+1), d, true
 		end += len(content)
 	}
 	if len(content) == 0 {
 		return f, 0, false
 	}
-	f, ok = cs.shape(mk.kind, mk.title, content)
+	f, ok = cs.shape(mk.kind, mk.title, content, after)
 	return f, end, ok
 }
 
 // following returns the top-level nodes from index from on that a marker-only
 // quote governs, read by grammar: a list form takes the ONE list right after
 // it; tabs take the run of sections from the heading right after it up to a
-// shallower heading, a `---` or the end.
+// shallower heading, a `---` or the end. A `---` right before a heading of
+// the first heading's depth parts two tabs instead (flowdown v0.7.1): it is
+// in the run, and tabs leaves it out of the panels.
 func (d *doc) following(kind string, from int) []span {
 	if from >= len(d.top) {
 		return nil
@@ -177,7 +179,9 @@ func (d *doc) following(kind string, from int) []span {
 	for ; end < len(d.top); end++ {
 		switch n := d.top[end].node.(type) {
 		case *ast.ThematicBreak:
-			return d.top[from:end]
+			if !d.partsTabs(end, h.Level) {
+				return d.top[from:end]
+			}
 		case *ast.Heading:
 			if n.Level < h.Level {
 				return d.top[from:end]
@@ -187,11 +191,22 @@ func (d *doc) following(kind string, from int) []span {
 	return d.top[from:end]
 }
 
+// partsTabs reports whether the rule at top-level index i stands right
+// before a heading of depth level.
+func (d *doc) partsTabs(i, level int) bool {
+	if i+1 >= len(d.top) {
+		return false
+	}
+	next, ok := d.top[i+1].node.(*ast.Heading)
+	return ok && next.Level == level
+}
+
 // shape reads content (spans of d) as the form kind; false when it does not fit.
-func (d *doc) shape(kind, title string, content []span) (Directive, bool) {
+// after: content is the run following took.
+func (d *doc) shape(kind, title string, content []span, after bool) (Directive, bool) {
 	f := Directive{Title: title}
 	if kind == "tabs" {
-		tabs, ok := d.tabs(content)
+		tabs, ok := d.tabs(content, after)
 		if !ok {
 			return f, false
 		}
@@ -273,8 +288,10 @@ func (d *doc) items(list *ast.List, sp span) []string {
 }
 
 // tabs reads content as one tab per heading of the first heading's depth,
-// each holding everything up to the next.
-func (d *doc) tabs(content []span) (*Tabs, bool) {
+// each holding everything up to the next. parted: content is the run
+// following took; a rule in it parts two tabs and is not drawn (a quote's
+// own content keeps its rules, as flowdown's does).
+func (d *doc) tabs(content []span, parted bool) (*Tabs, bool) {
 	first, ok := content[0].node.(*ast.Heading)
 	if !ok {
 		return nil, false
@@ -282,13 +299,17 @@ func (d *doc) tabs(content []span) (*Tabs, bool) {
 	t := &Tabs{}
 	from := -1
 	end := content[len(content)-1].to
-	for _, sp := range content {
+	for i, sp := range content {
 		h, ok := sp.node.(*ast.Heading)
 		if !ok || h.Level != first.Level {
 			continue
 		}
 		if n := len(t.Panels); n > 0 {
-			t.Panels[n-1].Body = trimBody(d.s[from:sp.from])
+			stop := sp.from
+			if _, rule := content[i-1].node.(*ast.ThematicBreak); rule && parted {
+				stop = content[i-1].from
+			}
+			t.Panels[n-1].Body = trimBody(d.s[from:stop])
 		}
 		label := strings.TrimSpace(d.labelText(h))
 		if label == "" {

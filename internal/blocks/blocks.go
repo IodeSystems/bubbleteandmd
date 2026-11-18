@@ -499,6 +499,15 @@ func group(text string, starts []int) []int {
 		return ""
 	}
 	isItem := func(line string) bool { return !ruleRe.MatchString(line) && itemColumn(line) != 0 }
+	// belowRule is the line under a piece's opening rule: its own next line,
+	// or the next piece's first.
+	belowRule := func(piece int) string {
+		own := strings.SplitN(text[starts[piece]:endOf(piece)], "\n", 3)
+		if len(own) > 1 && strings.TrimSpace(own[1]) != "" {
+			return strings.TrimSuffix(own[1], "\r")
+		}
+		return first(piece + 1)
+	}
 	// tabsEnd is the piece after the tabs whose first heading is in holder, on
 	// line or underlined.
 	tabsEnd := func(holder int, line string, fallback int) int {
@@ -518,8 +527,12 @@ func group(text string, starts []int) []int {
 		end := holder + 1
 		for ; end < count; end++ {
 			next := first(end)
+			// A rule right before a heading of this depth parts two tabs
+			// (flowdown v0.7.1); any other ends them.
 			if ruleRe.MatchString(next) {
-				break
+				if h := headingRe.FindStringSubmatch(belowRule(end)); h == nil || len(h[1]) != depth {
+					break
+				}
 			}
 			if h := headingRe.FindStringSubmatch(next); h != nil && len(h[1]) < depth {
 				break
@@ -699,7 +712,8 @@ func Split(src string) []Block {
 
 // reopened is how many blocks at the end are read again. Appended text can
 // change only the group it is appended to, and that group can join the one
-// before it (a `[!CONS]` under a `[!PROS]`); every group above is final.
+// before it (a `[!CONS]` under a `[!PROS]`); every group above is final,
+// but the group above a group a rule opens (a rule can part two tabs).
 const reopened = 2
 
 // Splitter is Split for a document that grows at its end, as a streaming reply
@@ -720,7 +734,14 @@ func (s *Splitter) Split(src string) []Block {
 		*s = Splitter{lexed: s.lexed}
 		return nil
 	}
-	kept := s.blocks[:max(0, len(s.blocks)-reopened)]
+	keep := max(0, len(s.blocks)-reopened)
+	// A rule can part two tabs (group's tabsEnd): text after it can join
+	// the group before it too, so a group a rule opens does not close the
+	// one above.
+	for keep > 0 && ruleRe.MatchString(lineAt(s.blocks[keep].Source, 0)) {
+		keep--
+	}
+	kept := s.blocks[:keep]
 	from, line := 0, 1
 	if n := len(kept); n > 0 {
 		last := kept[n-1]
