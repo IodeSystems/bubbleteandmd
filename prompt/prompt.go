@@ -126,7 +126,7 @@ func Format(o Options) string {
 		"Replies render as GitHub Markdown" + math + " plus the forms below. Where a form fits, a plain list or table is a defect. " +
 			"The user's style preferences override this. Write a marker as its own quote line, its content unquoted after it.",
 		"- Lead with the answer. Short replies use prose; long ones use `##` per thread, short paragraphs and selective bold.",
-		"- Options compared (X vs Y, which to use) or variants (per OS, language): a tab per option, `#### Label`; a compared option holds its sides. After them a `---`, then one line on when to pick which:\n" + shown(examples["comparison"]),
+		"- Options compared (X vs Y, which to use) or variants (per OS, language): a tab per option, `#### Label`; a compared option holds its sides, each side its own quote outside the tabs quote, a blank line between. After them a `---`, then one line on when to pick which:\n" + shown(examples["comparison"]),
 		"- One option weighed (should I, is it worth it): its sides, then the verdict:\n" + shown(examples["verdict"]),
 		"- Stages in order (a plan, recovery, schedule, by day, a procedure): steps, never a numbered list:\n" + shown(examples["steps"]),
 		"- Headline figures (speedups, sizes, key numbers): stats:\n" + shown(examples["stats"]),
