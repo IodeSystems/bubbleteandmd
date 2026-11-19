@@ -38,3 +38,41 @@ func TestInlineMath(t *testing.T) {
 		}
 	}
 }
+
+// TestInlineMathDollars: notty keeps a formula's `$` in the code span, and
+// the shifts map each byte of the rewritten text that src holds back to it.
+func TestInlineMathDollars(t *testing.T) {
+	for in, want := range map[string]string{
+		"Sum: $2 + 2 = 4$.":           "Sum: `$2 + 2 = 4$`.",
+		"$a_1 + b_1$ and $x_i$":       "`$a_1 + b_1$` and `$x_i$`",
+		`set $\{x\}$ here`:            "set `$\\{x\\}$` here",
+		"From $5 for $n^2$ rows":      "From $5 for `$n^2$` rows",
+		"$5 and $10 = cheap":          "$5 and $10 = cheap",
+		"`$x$` and $y$":               "`$x$` and `$y$`",
+		"> see $a+b$\n>\n> and $c$\n": "> see `$a+b$`\n>\n> and `$c$`\n",
+		"$a`b$":                       "$a`b$",
+	} {
+		got, shifts := InlineMathDollars(in)
+		if got != want {
+			t.Errorf("InlineMathDollars(%q) = %q, want %q", in, got, want)
+			continue
+		}
+		if len(shifts) != len(got)-len(in) {
+			t.Errorf("InlineMathDollars(%q): %d shifts, want %d", in, len(shifts), len(got)-len(in))
+		}
+		// Bytes of got that are not inserted backticks, in order, are in.
+		ins := map[int]bool{}
+		for _, s := range shifts {
+			ins[s.At-1] = true
+		}
+		for i := range len(got) {
+			if ins[i] {
+				continue
+			}
+			if r := RawOffset(shifts, i); r < 0 || r >= len(in) || in[r] != got[i] {
+				t.Errorf("InlineMathDollars(%q): byte %d maps to %d", in, i, r)
+				break
+			}
+		}
+	}
+}

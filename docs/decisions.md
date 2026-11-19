@@ -621,12 +621,19 @@
     one right before or after it. heal reads the same rule
     (inlineMathClose skips a `$` by its look only): `Sum: $2 + 2 = 4$` is
     no longer cut to `Sum: $2 + 2 = 4` while streaming. notty: glamour
-    draws inline code with no mark, so a formula shows as its bare TeX
-    (`a^2`). A wide table that holds a formula streams through the
+    draws inline code with no mark, so there the span keeps the `$`
+    (InlineMathDollars, via PrepareFor(block, Theme.Plain)): `$a^2$`
+    becomes `` `$a^2$` `` and shows as `$a^2$`, still a code span so the
+    TeX is not read as Markdown. Two bytes more per formula, mapped back by
+    a third Shifts entry, so keys stay offsets as written (IDs reads
+    Prepare, no `$` kept: same keys). Not drawn at render time: glamour
+    has no per-span hook, and a notty Code prefix/suffix would mark all
+    inline code. Dark/light: unchanged, same length. A wide table that holds a formula streams through the
     DirectiveRenderer, not the wide glamour target (which does not see the
     rewrite). Goldens changed: testdata/golden/docs/code_*.golden (6
     files, the line `Inline $a^2$ and $5 money.`). Tests:
-    inlinemath_test.go (both packages), heal TestMathSpans.
+    inlinemath_test.go (both packages; TestInlineMathDollars,
+    TestInlineMathNotty), heal TestMathSpans.
   - Shared corpus: spec/forms/spec.txt vendored in testdata/flowdown-spec
     (with flowdown's MIT licence). internal/directive
     TestFlowdownFormsSpec prints each example's forms as test/forms.ts does

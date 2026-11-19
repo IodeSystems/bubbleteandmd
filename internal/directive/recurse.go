@@ -76,9 +76,20 @@ func (s Shifts) Raw(rel int) int {
 // formula. IDs and the renderer both read forms from src, so their keys
 // agree.
 func Prepare(block string) (src string, math bool, sh Shifts) {
+	return PrepareFor(block, false)
+}
+
+// PrepareFor is Prepare for a theme: plain (notty) keeps a formula's `$`
+// (InlineMathDollars), which moves offsets; sh maps them back, so a key
+// read through sh.Raw is the same as Prepare's.
+func PrepareFor(block string, plain bool) (src string, math bool, sh Shifts) {
 	src, q := SplitQuotes(block)
 	src, math, m := MathFences(src)
-	return InlineMath(src), math, Shifts{q, m}
+	if !plain {
+		return InlineMath(src), math, Shifts{q, m}
+	}
+	src, i := InlineMathDollars(src)
+	return src, math, Shifts{q, m, i}
 }
 
 // SplitQuotes puts a blank line before each marker line inside a quote that

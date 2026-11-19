@@ -228,7 +228,7 @@ Syntax, dialect and answerFormatPrompt unchanged. No focus/size API upstream (br
 - ✅ nested markers merged (see "Marker lines inside content"; repro text made neutral, no private project text).
 - ✅ heal port + parser readings (decisions.md "flowdown v0.7.1 heal port"). Gap: goldmark reads `|\n-|` as a 1-col table (micromark: paragraph), pinned by test.
 - ◐ syntax port (branch flowdown-071-syntax; decisions.md "flowdown v0.7.1 syntax port"): `---` parts same-depth tabs (+ Splitter reopens above a rule block);
-  inline `$…$` → code span (we had no inline math; v0.7.1 pairing); spec/forms 18/18. Goldens changed: code_*.golden (6). **next**: Carl review, merge.
+  inline `$…$` → code span (we had no inline math; v0.7.1 pairing; notty keeps the `$`: `` `$a^2$` ``, shifted); spec/forms 18/18. Goldens changed: code_*.golden (6). **next**: Carl review, merge.
   ✅ TestMarkerLinesNoShrink (`> [!TABS]\n> #` 4 → 2 lines since 23695b2): fixed in heal, a bare marker in a quote keeps its quote prefix (decisions.md, heal-port entry).
   ✅ TestShowcaseNoShrink without -short (`> [!STEPS]\n1` → `1.`, `1. *` → `1. **First `, `> [!STEPS] The plan\n1` → `1. `): fixed in heal, a held-back marker leaves the frame before it (decisions.md, heal-port entry).
 - ✅ full suite -short dev box exit 0 (root 885 s), vet clean; M1 skipped (Carl: throughput). dun-bf told (file + message).

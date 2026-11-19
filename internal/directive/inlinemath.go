@@ -18,12 +18,26 @@ import (
 // blocks and HTML are not read. Not rewritten: a formula that holds a
 // backtick or has one right before or after it (the span would change).
 func InlineMath(src string) string {
+	out, _ := inlineMath(src, false)
+	return out
+}
+
+// InlineMathDollars is InlineMath for notty, where glamour draws inline code
+// with no mark: the code span keeps the formula's `$` (`$a^2$` becomes
+// "`$a^2$`"), so a formula does not read as prose. Each span adds two bytes;
+// shifts map the rewritten text back to src.
+func InlineMathDollars(src string) (string, []MathShift) {
+	return inlineMath(src, true)
+}
+
+func inlineMath(src string, dollars bool) (string, []MathShift) {
 	if strings.Count(src, "$") < 2 {
-		return src
+		return src, nil
 	}
 	b := []byte(src)
 	root := md.Parser().Parse(text.NewReader(b))
 	var out []byte
+	var spans [][2]int
 	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering || n.Type() != ast.TypeBlock {
 			return ast.WalkContinue, nil
@@ -50,14 +64,36 @@ func InlineMath(src string) string {
 			if out == nil {
 				out = b
 			}
-			out[o], out[c] = '`', '`'
+			if dollars {
+				spans = append(spans, [2]int{o, c})
+			} else {
+				out[o], out[c] = '`', '`'
+			}
 		}
 		return ast.WalkSkipChildren, nil
 	})
 	if out == nil {
-		return src
+		return src, nil
 	}
-	return string(out)
+	if !dollars {
+		return string(out), nil
+	}
+	// A backtick goes before each span's opening `$` and after its closing
+	// one; the bytes after an inserted backtick sit one further on.
+	var w strings.Builder
+	var shifts []MathShift
+	done := 0
+	for _, sp := range spans {
+		w.WriteString(src[done:sp[0]])
+		w.WriteByte('`')
+		shifts = append(shifts, MathShift{w.Len(), 1})
+		w.WriteString(src[sp[0] : sp[1]+1])
+		w.WriteByte('`')
+		shifts = append(shifts, MathShift{w.Len(), 1})
+		done = sp[1] + 1
+	}
+	w.WriteString(src[done:])
+	return w.String(), shifts
 }
 
 // blankInert blanks, in prose (the text of block n from byte from on), the

@@ -185,7 +185,7 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 	ps := make([]parsed, len(bs))
 	plain := true
 	for i, b := range bs {
-		src, math, shifts := directive.Prepare(b.Source)
+		src, math, shifts := directive.PrepareFor(b.Source, r.theme.Plain)
 		d, ok := directive.Parse(src)
 		ps[i] = parsed{src: src, d: d, form: ok, shifts: shifts}
 		if !ok && !math {
