@@ -7,7 +7,7 @@ Source of the work: owner brief from dun-bf, 2026-11-10 (Carl approved).
 Layers in order, each usable alone. dun pins tags; tags/push need Carl's OK.
 
 Tags: v0.4.1 @ 8d454ad, v0.5.0 @ 2f3ad29, v0.5.1 @ dc9c682 (pushed 2026-11-12; dc9c682: M1 full suite all pass, root 1189 s;
-dev box -short all pass, root 541 s; vet clean both). GitHub releases v0.4.0..v0.5.1 made. v0.5.2: prompt lead 3 sentences → 1 (dun-bf request, Carl OK 2026-11-17; prompt/ imported by nothing else here).
+dev box -short all pass, root 541 s; vet clean both). GitHub releases v0.4.0..v0.5.1 made. v0.6.0 @ 9be7c5d, v0.7.0 @ 91b0d64 (2026-11-18; dev box -short all pass, vet clean; M1 skipped per Carl). v0.5.2: prompt lead 3 sentences → 1 (dun-bf request, Carl OK 2026-11-17; prompt/ imported by nothing else here).
 
 ## Active work
 
@@ -243,9 +243,9 @@ dun-bf: `[!PROS]`/`[!CONS]` lines in a `> [!TABS]` panel printed as text.
   a lazy (unquoted) line in a form quote stops the split scan (conservative); a blank line ends a body run (loose list under a marker line splits).
 - **blocking decisions**: Carl: a callout marker line in a callout quote = sibling (chosen) vs nested; marker in a plain quote (not split, chosen).
 
-### ◐ Mermaid diagrams (Carl approved 2026-11-18; decisions.md "mermaid diagrams")
+### ✅ Mermaid diagrams (released v0.7.0; Carl approved 2026-11-18; decisions.md "mermaid diagrams")
 - ✅ mermaid.go + heal.OpenMermaid + Stream plainFence; dep mermaid-ascii (pseudo-version of tag 1.6.2); goldens mermaid_*; tests mermaid_test.go.
-- **next**: Carl review (default on vs opt-in; top level only).
+- **next**: none; Carl said go with default on (v0.7.0). Upstream issue draft for the stdout Printf if Carl wants it.
 - **risks**: mermaid-ascii fmt.Printf to stdout on a no-path edge; logrus debug if the host sets the global level; 100-line body cap
   is a guess from 3 sizes; `` ```x `` after a closer reopens (diagram → code, can shrink); dep pulls gookit/color, logrus, runewidth.
 - **blocking decisions**: Carl: default on (chosen) or opt-in. Assumed: classDef colours dropped in every style; fences in
