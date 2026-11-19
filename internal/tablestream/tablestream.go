@@ -645,6 +645,9 @@ func headerCells(l string) int {
 		return -1
 	}
 	s := strings.TrimSpace(l)
+	if s == "|" {
+		return -1 // a lone pipe heads no table (internal/nest loneTable)
+	}
 	s = strings.TrimSuffix(strings.TrimPrefix(s, "|"), "|")
 	return len(strings.Split(s, "|"))
 }

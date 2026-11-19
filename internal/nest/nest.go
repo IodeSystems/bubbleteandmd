@@ -12,11 +12,14 @@
 package nest
 
 import (
+	"bytes"
+
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	extast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
@@ -52,8 +55,63 @@ func New() goldmark.Markdown {
 		parser.WithASTTransformers(util.Prioritized(inlines{}, 100)),
 	)
 	return goldmark.New(goldmark.WithParser(p),
-		goldmark.WithExtensions(extension.GFM, extension.DefinitionList),
+		goldmark.WithExtensions(extension.Linkify, loneTable{}, extension.Strikethrough,
+			extension.TaskList, extension.DefinitionList),
 		goldmark.WithParserOptions(parser.WithAutoHeadingID()))
+}
+
+// loneTable is extension.Table (a part of extension.GFM) with one change: a
+// paragraph with a header row of one lone `|` (whitespace aside) right before
+// a delimiter row is left a paragraph. micromark's gfm-table tokenizer
+// refuses such a head ("if anything other than one pipe (ignoring
+// whitespace) was used, it's fine": sizeB > 1; micromark-extension-gfm-table
+// lib/syntax.js, headRowBreak). `| |` has two pipes and stays a table.
+// docs/decisions.md, "Lone pipe header".
+type loneTable struct{}
+
+func (loneTable) Extend(m goldmark.Markdown) {
+	m.Parser().AddOptions(
+		parser.WithParagraphTransformers(util.Prioritized(loneGuard{extension.NewTableParagraphTransformer()}, 200)),
+		parser.WithASTTransformers(util.Prioritized(extension.NewTableASTTransformer(), 0)),
+	)
+	m.Renderer().AddOptions(renderer.WithNodeRenderers(
+		util.Prioritized(extension.NewTableHTMLRenderer(), 500)))
+}
+
+// loneGuard skips the table transformer for a paragraph with a lone pipe
+// row right before a delimiter row. (The rest of such a paragraph is not
+// searched for a later table: rare, and goldmark's table cannot interrupt
+// the lines before it either.)
+type loneGuard struct{ parser.ParagraphTransformer }
+
+func (g loneGuard) Transform(node *ast.Paragraph, reader text.Reader, pc parser.Context) {
+	lines := node.Lines()
+	for i := 1; i < lines.Len(); i++ {
+		a, b := lines.At(i-1), lines.At(i)
+		if loneRow(a.Value(reader.Source())) && delimRow(b.Value(reader.Source())) {
+			return
+		}
+	}
+	g.ParagraphTransformer.Transform(node, reader, pc)
+}
+
+func loneRow(b []byte) bool { return string(bytes.TrimSpace(b)) == "|" }
+
+// delimRow is goldmark's isTableDelim (unexported).
+func delimRow(bs []byte) bool {
+	if w, _ := util.IndentWidth(bs, 0); w > 3 {
+		return false
+	}
+	allSep := true
+	for _, b := range bs {
+		if b != '-' {
+			allSep = false
+		}
+		if !(util.IsSpace(b) || b == '-' || b == '|' || b == ':') {
+			return false
+		}
+	}
+	return !allSep
 }
 
 // capped opens no block where Blocks blocks already hold one another: the

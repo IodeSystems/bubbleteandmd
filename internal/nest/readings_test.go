@@ -53,9 +53,10 @@ func TestMicromarkReadings(t *testing.T) {
 		{"item before dashes", "b\n- |", "Paragraph[]List(tight=true)[ListItem[TextBlock[]]]"},
 		{"item before dashes", "a | b\n- | -", "Paragraph[]List(tight=true)[ListItem[TextBlock[]]]"},
 		{"dashes without space", "a | b\n-|-", "Table[TableHeader[TableCell[]TableCell[]]]"},
-		// (4) Gap: micromark reads `|\n-|` as a paragraph (a lone pipe heads no
-		// table); goldmark reads a one-column table with an empty header.
-		{"lone pipe header (gap)", "|\n-|", "Table[TableHeader[TableCell[]]]"},
+		// (4) A lone pipe heads no table (micromark: more than one pipe needed).
+		{"lone pipe header", "|\n-|", "Paragraph[]"},
+		{"lone pipe header, piped delimiter", "|\n|-|", "Paragraph[]"},
+		{"lone pipe header, spaces", "  | \n-|", "Paragraph[]"},
 		{"empty cell header", "| |\n|-|", "Table[TableHeader[TableCell[]]]"},
 	} {
 		if got := shape(parse(md, c.src)); got != c.want {

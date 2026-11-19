@@ -576,11 +576,8 @@
   definition after a blank line in an item → loose (example 317): agrees;
   (3) `b\n- |` and `a | b\n- | -` are paragraph + list: agrees; (4) a lone
   `|` header: differs, goldmark reads `|\n-|` as a one-column table,
-  micromark as a paragraph. Gap, not fixed: goldmark's table is a
-  paragraph transformer; skipping it needs a wrapped transformer in
-  nest.New, and tablehold/heal's table rules would have to agree. Rare in
-  model text. All four pinned in internal/nest TestMicromarkReadings
-  (the gap as goldmark reads it).
+  micromark as a paragraph. Fixed 2026-11-18, see "Lone pipe header".
+  All four pinned in internal/nest TestMicromarkReadings.
   Tests: heal TestClose (TS cases ported), TestNoShrinkRules updated.
 
 - 2026-11-18 (flowdown v0.7.1 syntax port, Carl approved): 6ec2a16 and
@@ -635,3 +632,14 @@
     BodyForms); TestFlowdownFormsSpecMarkers checks the markers table. 18
     of 18 pass, none skipped: no example has a marker line inside content
     (our deviation), and `> First line.\n> [!NOTE]` is `(none)` in both.
+
+- 2026-11-18 (Lone pipe header): a header row of one `|` (whitespace aside)
+  opens no table; `|\n-|` and `|\n|-|` are paragraphs, `| |\n|-|` stays a
+  table. Source: micromark-extension-gfm-table lib/syntax.js headRowBreak
+  (head row needs sizeB > 1: "anything other than one pipe (ignoring
+  whitespace)"). internal/nest: extension.GFM split into its parts, Table
+  replaced by loneTable, whose paragraph transformer skips a paragraph with
+  a lone pipe row right before a delimiter row. internal/tablestream
+  headerCells refuses a lone pipe, so the fast path agrees. tablehold and
+  heal need no change: they hold or hide by row start, and the delimiter
+  row's "\n" ends the hold.
