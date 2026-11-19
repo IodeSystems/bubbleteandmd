@@ -29,8 +29,10 @@ open code fence, a link without its `)`) shows raw until it closes.
    code fences, GFM task lists. One form beyond it (Carl 2026-11-18): a
    marker line inside a form's content (`[!PROS]` in a tab panel, `>
    [!CONS]` under a `> [!PROS]` list) starts that form too
-   (docs/decisions.md, "marker lines inside content"). Drawn with lipgloss. Mermaid and math show
-   as code. ```` ```diff ```` / ```` ```patch ```` fences: added and
+   (docs/decisions.md, "marker lines inside content"). Drawn with lipgloss. Math shows
+   as code. A closed top-level ```` ```mermaid ```` fence (flowchart, sequence,
+   ER) draws as a diagram (mermaid-ascii); while it streams, and when it
+   cannot draw (error, too wide, other type), it shows as code. ```` ```diff ```` / ```` ```patch ```` fences: added and
    removed lines on a green/red background tint, changed words of a
    removed/added pair stronger, hunk and file headers faint, one line per
    source line (cut, not wrapped); with `title="x.go"` the code inside is
@@ -72,6 +74,10 @@ out, err = s.Final(reply)  // once, when the reply ends
   or table wider than `width` is not wrapped; it renders at its own width
   and each line is cut at `pane` with `… +N cols →`. Prose still wraps at
   `width`. Put `pane` in the Stream key.
+- `r.Mermaid(false)` (before the first Render): ```` ```mermaid ```` fences
+  show as code, not as diagrams (default: on). Put it in the Stream key.
+  A diagram is never fewer lines than its code block, so the frame does
+  not shrink when the fence closes.
 - Interactive forms: `d := bubbleteandmd.NewDoc(r, key, cache)` in place
   of NewStream; `d.Frame`/`d.Final` as above. The layout stays as streamed
   until the user acts. `d.Focus()` gives the Doc the keys;

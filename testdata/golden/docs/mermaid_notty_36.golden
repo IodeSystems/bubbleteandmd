@@ -1,0 +1,79 @@
+
+  # Diagrams                      
+                                  
+  A flowchart:                    
+                                  
+    ┌────────┐                    
+    │        │                    
+    │ Start  │                    
+    │        │                    
+    └────┬───┘                    
+         │                        
+         │                        
+         │                        
+         │                        
+         ▼                        
+    ┌────────┐                    
+    │        │                    
+    │ Ready? ├◄─no────┐           
+    │        │        │           
+    └────┬───┘        │           
+         │            │           
+         │            │           
+        yes           │           
+         │            │           
+         ▼            ▼           
+    ┌────────┐     ┌──┴──┐        
+    │        │     │     │        
+    │  Ship  │     │ Fix │        
+    │        │     │     │        
+    └────────┘     └─────┘        
+                                  
+  A sequence:                     
+                                  
+    ┌──────┐     ┌────────┐       
+    │ User │     │ Server │       
+    └───┬──┘     └────┬───┘       
+        │             │           
+        │ GET /items  │           
+        ├────────────►│           
+        │             │           
+        │ 200 OK      │           
+        │◄┈┈┈┈┈┈┈┈┈┈┈┈┤           
+        │             │           
+                                  
+  An entity relation:             
+                                  
+    erDiagram                     
+      CUSTOMER ||--o{ ORDER :     
+  places                          
+      ORDER ||--|{ LINE : contains
+                                  
+  Too wide, shows as code:        
+                                  
+    graph LR                      
+      Alpha --> Bravo --> Charlie 
+  --> Delta --> Echo --> Foxtrot -
+  -> Golf --> Hotel               
+                                  
+  A parse error, shows as code:   
+                                  
+    sequenceDiagram               
+      A->>                        
+                                  
+  Not a type it draws, shows as   
+  code:                           
+                                  
+    pie title Pets                
+      "Dogs" : 3                  
+      "Cats" : 2                  
+                                  
+  In a list it stays code:        
+                                  
+  • Item                          
+    graph LR                      
+      A --> B                     
+                                  
+                                  
+  The end.                        
+

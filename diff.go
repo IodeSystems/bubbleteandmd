@@ -48,6 +48,9 @@ type diffCal struct {
 	lead       string
 	cell       string
 	area       int
+	// pre, post: the SGR glamour writes before and after the code text
+	// (mermaid.go draws a diagram line in it).
+	pre, post string
 	// bad: the render had no such line; the fence renders through glamour.
 	bad bool
 }
@@ -79,20 +82,32 @@ type tok struct {
 // block at indent 0 whose language is a diff, and returns its code lines.
 // An unclosed fence runs to the end; after a closing line only blank lines.
 func diffFence(src string) (body string, ok bool) {
-	nl := strings.IndexByte(src, '\n')
-	if nl < 0 {
+	info, body, _, ok := topFence(src)
+	if !ok {
 		return "", false
 	}
-	m := fenceOpenRe.FindStringSubmatch(src[:nl])
-	if m == nil || len(m[0]) != len(m[1])+len(m[2]) || (m[1][0] == '`' && strings.Contains(m[2], "`")) {
-		return "", false
-	}
-	lang := strings.TrimSpace(m[2])
+	lang := strings.TrimSpace(info)
 	if i := strings.IndexAny(lang, " \t"); i >= 0 {
 		lang = lang[:i]
 	}
 	if !directive.IsDiffLang(lang) {
 		return "", false
+	}
+	return body, true
+}
+
+// topFence reports whether src (one top-level block) is one fenced code
+// block at indent 0, and returns its info string and its code lines.
+// closed: a closing line ends it (only blank lines after it); an unclosed
+// fence runs to the end.
+func topFence(src string) (info, body string, closed, ok bool) {
+	nl := strings.IndexByte(src, '\n')
+	if nl < 0 {
+		return "", "", false, false
+	}
+	m := fenceOpenRe.FindStringSubmatch(src[:nl])
+	if m == nil || len(m[0]) != len(m[1])+len(m[2]) || (m[1][0] == '`' && strings.Contains(m[2], "`")) {
+		return "", "", false, false
 	}
 	rest := src[nl+1:]
 	for i := 0; i < len(rest); {
@@ -103,16 +118,16 @@ func diffFence(src string) (body string, ok bool) {
 		}
 		if c := codeFenceRe.FindStringSubmatch(rest[i:end]); c != nil && c[1][0] == m[1][0] && len(c[1]) >= len(m[1]) && strings.TrimSpace(rest[i+len(c[0]):end]) == "" {
 			if strings.TrimSpace(rest[end:]) != "" {
-				return "", false
+				return "", "", false, false
 			}
-			return rest[:i], true
+			return m[2], rest[:i], true, true
 		}
 		if j < 0 {
 			break
 		}
 		i = end + 1
 	}
-	return rest, true
+	return m[2], rest, false, true
 }
 
 // diffPiece renders a diff fence block (src, its code body) in target t.
@@ -222,7 +237,8 @@ func readCal(p string) *diffCal {
 		return nil
 	}
 	cell := trail[len(trail)-padUnit(trail, false):]
-	return &diffCal{head: lines[:at], tail: lines[at+1:], lead: lead, cell: cell, area: xansi.StringWidth(l) - xansi.StringWidth(lead)}
+	x := strings.IndexByte(mid, 'x') // SGR has no 'x'
+	return &diffCal{head: lines[:at], tail: lines[at+1:], lead: lead, cell: cell, area: xansi.StringWidth(l) - xansi.StringWidth(lead), pre: mid[:x], post: mid[x+1:]}
 }
 
 // padRunAt returns the run of blank cells (plain spaces, or glamour's

@@ -81,7 +81,9 @@
   fallback. `text` is a registered alias: a map hit. Change: such fences no
   longer get content-guessed colours (Carl accepted); lines and text are the
   same (tested). Other info-string parts (`title="..."`) stay; `math`,
-  `mermaid` become `text`; `tree` and titled code are read as forms first,
+  `mermaid` become `text` (since 2026-11-18 a closed top-level
+  ```` ```mermaid ```` fence draws as a diagram first, "mermaid diagrams";
+  one that does not draw still becomes `text`); `tree` and titled code are read as forms first,
   and a titled fence renders through the same path. Only a block that
   starts with a fence (blocks.Split) is rewritten, on its opening line: a
   first line-scan version broke TestRendererPlain (fuzz-1; a fence closer in
@@ -643,3 +645,66 @@
   headerCells refuses a lone pipe, so the fast path agrees. tablehold and
   heal need no change: they hold or hide by row start, and the delimiter
   row's "\n" ends the hold.
+
+- 2026-11-18 (mermaid diagrams, Carl approved): a closed top-level
+  ```` ```mermaid ```` fence (info string `mermaid` alone, indent 0) draws
+  as a terminal diagram (mermaid.go). Library:
+  github.com/AlexanderGrooff/mermaid-ascii (MIT), a normal go.mod
+  dependency, not vendored (Carl). Its tags have no `v` (`1.6.2`), so go.mod
+  pins the pseudo-version of tag 1.6.2's commit (e7a2d2f). Why it: pure Go,
+  draws flowchart/graph, sequence and ER diagrams in Unicode box drawing;
+  other types it returns an error for. Measured (dev box): flowchart of 15
+  nodes ~25 ms, sequence ~0.6 ms; 20/50/100 edges 36/103/369 ms.
+  - Frame: the diagram in glamour's code block frame (head and tail lines,
+    margin and indent, the code text's SGR around each line, pad cells to
+    the code area), read from the one-line fence render diff.go already
+    reads (diffCal, now with the SGR around the text). Its width limit is
+    the code area (graphs get it as MaxWidth). Colours from `classDef`
+    (gookit/color, codes chosen from the environment) are dropped in every
+    style; notty has no SGR. Unicode box drawing in notty too (notty forms
+    use `▸`, `‹…›`).
+  - Code, as before, when: the library returns an error (parse error, a
+    type it does not draw: pie, classDiagram, …) or panics (recovered); the
+    output is empty or holds a tab; a line is wider than the code area
+    (x/ansi cells); the body has more than 100 lines (layout time grows
+    faster than the edges); the fence is unclosed at the end of the text,
+    titled, indented, or in a list, quote or form body. Why not those:
+    a fence in a form body or quote streams as a quoted fence, which heal
+    does not mark (below); top level is the simple path. `Mermaid(false)`
+    (before the first Render; name it in the Stream key): every fence code.
+  - Streaming: heal adds `streaming` to the info string of a `mermaid`
+    fence it closes (heal.OpenMermaid; column 0, no quote), so the frame
+    draws the open fence as code (glamour reads the language from the first
+    word: the same bytes as before) and Frame == Render(heal.Close(raw))
+    still holds. The frame where the closer line is whole draws the
+    diagram. Stream renders a closed mermaid tail whole (plainFence: no
+    codestream chunks, which would each draw as a diagram).
+  - No shrink: the diagram piece is never fewer lines than the code block
+    it replaces (glamour's render of the same block): blank code lines are
+    added under it. So the closer can only make the frame grow, as the
+    table hold rule (placeholder → table only grows). Cost: a diagram of
+    a long source with few nodes (comments, `%%`) has blank lines under it.
+    Not covered: a closer followed by text on its line (```` ```x ````)
+    reopens the fence: diagram → code can then shrink (not CommonMark a
+    model writes).
+  - Cache: process-wide LRU, 128 entries, by (body, code area width), a
+    failure kept too, so a diagram is laid out once, not per frame, Stream
+    or style. The value has no colour; style and frame are put on per
+    render, so the style is not in the key; no ASCII option, so not either.
+    The lock is not held during the library call.
+  - Thread safety (checked in mermaid-ascii at e7a2d2f): no mutable
+    package state of its own (maps, regexps, glyph tables: read only);
+    logrus's global logger (locked), gookit/color's globals (set at init,
+    read). 16 goroutines × 20 renders of every type under `-race`: clean
+    (a scratch package; the root package's `-race` stops first at the known
+    regexp2 timeout write, "lex timeout opt-in"). So no mutex. Risks it
+    has: graph's mapping_edge.go writes to stdout with fmt.Printf when it
+    finds no path (would show in a TUI); logrus Debug lines go to stderr if
+    the host turns logrus's global level to debug.
+  - Default on (Carl may flip it to opt-in: one line in NewRenderer).
+    Tests: mermaid_test.go (draws, fallbacks, library error/panic/empty,
+    not shorter than code, cache, streaming code→diagram at the closer,
+    no shrink token + rune prefixes dark/notty w40/79, off, concurrent),
+    heal TestOpenMermaid, goldens testdata/golden/docs/mermaid_* (new;
+    sample testdata/directives/mermaid.md). No other golden changed:
+    code.md's `graph TD; A-->B` is a parse error in mermaid-ascii, code.

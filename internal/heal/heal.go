@@ -61,6 +61,7 @@ func Close(text string) string {
 		if nl+1 >= f.bodyStart && f.partialCloser(text[nl+1:]) {
 			text = text[:nl+1]
 		}
+		text = markOpenMermaid(text, f)
 		if strings.HasSuffix(text, "\n") {
 			return text + closer
 		}
@@ -68,6 +69,27 @@ func Close(text string) string {
 	}
 
 	return closeProse(text, fenceEnd)
+}
+
+// OpenMermaid is the word Close adds to the info string of a ```mermaid fence it closes
+// (`mermaid` becomes `mermaid streaming`). The renderer draws a fence whose info string is
+// `mermaid` alone as a diagram; this word keeps a fence that is still being written drawn as code
+// (docs/decisions.md, "mermaid diagrams"). glamour reads the language from the first word, so the
+// code renders as before. Only a fence at column 0 outside a blockquote: the renderer draws no
+// other. Not in the TS.
+const OpenMermaid = "streaming"
+
+// markOpenMermaid adds OpenMermaid to the opener of f, the fence text ends inside, when its info
+// string is `mermaid` alone and it is at column 0 outside a blockquote.
+func markOpenMermaid(text string, f *fence) string {
+	if f.quote != "" || f.indent != "" || strings.TrimSpace(f.info) != "mermaid" {
+		return text
+	}
+	end := len(text)
+	if i := strings.IndexByte(text[f.start:], '\n'); i >= 0 {
+		end = f.start + i
+	}
+	return text[:end] + " " + OpenMermaid + text[end:]
 }
 
 // closeProse is Close outside a fence. Text before fenceEnd (the end of the last closed fence)

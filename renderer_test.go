@@ -66,8 +66,8 @@ func newTestRenderer(t *testing.T, style string, w int) *DirectiveRenderer {
 	return r
 }
 
-// hasForm reports whether any top-level block of text holds a form, a diff fence or a
-// `$$` formula: whether the renderer draws anything glamour does not.
+// hasForm reports whether any top-level block of text holds a form, a diff fence, a
+// closed mermaid fence or a `$$` formula: whether the renderer draws anything glamour does not.
 func hasForm(text string) bool {
 	for _, b := range blocks.Split(text) {
 		src, _, _ := directive.Prepare(b.Source)
@@ -78,6 +78,9 @@ func hasForm(text string) bool {
 			return true
 		}
 		if _, ok := diffFence(b.Source); ok {
+			return true
+		}
+		if _, ok := mermaidFence(b.Source); ok {
 			return true
 		}
 	}

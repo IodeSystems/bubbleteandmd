@@ -23,7 +23,8 @@ type Options struct {
 	// renderer shows math.
 	Math bool
 	// Diagrams teaches ```mermaid diagrams. Off by default; turn it on only
-	// if the renderer draws them (this module shows mermaid as code).
+	// if the renderer draws them (NewRenderer draws closed top-level mermaid
+	// fences; see DirectiveRenderer.Mermaid).
 	Diagrams bool
 }
 

@@ -19,7 +19,7 @@ dev box -short all pass, root 541 s; vet clean both). GitHub releases v0.4.0..v0
 Design (planner 2026-11-10): root Renderer implements layer-1 Renderer; per top-level block, internal/directive.Parse
 (goldmark AST) → lipgloss piece, else glamour. No directive → glamour(doc) unchanged. Directive piece copies glamour's
 piece frame (leading blank, margin, right pad, trailing \n) measured per (style,width). Bodies render recursively.
-Task lists already in glamour. Mermaid/math stay code.
+Task lists already in glamour. Math stays code; mermaid draws (2026-11-18, see "Mermaid diagrams").
 DAG: ✅ D1 frame spike (internal/spike/frame_spike_test.go: margin 2 plain, content W-4, pad cells styled per style; dark/light code piece ends without \n) · ✅ D2+D3 internal/directive parsers (33/33 forms, 4/4 dialect) · ✅ D4 Theme + Frame · ✅ D5a-d renderers (goldens, 3 styles; math has no Kind → D6 rewrites $$ to ```math)
 · ✅ D6+D7 NewRenderer → *DirectiveRenderer (name clash with layer-1 Renderer interface; Carl to confirm) + invariant · ◻ D8 bench · ◻ D9 docs · ◐ D10 Go format prompt (prompt/).
 - **next**: D6+D7, D10 running → O1-O3 → D8 bench → D9 docs → v0.2.0 (needs Carl OK).
@@ -242,6 +242,15 @@ dun-bf: `[!PROS]`/`[!CONS]` lines in a `> [!TABS]` panel printed as text.
 - **risks**: shrinks while streaming pros/cons in tabs (taught forms too: side-by-side pairing, `#`-only heading line) — not fixed;
   a lazy (unquoted) line in a form quote stops the split scan (conservative); a blank line ends a body run (loose list under a marker line splits).
 - **blocking decisions**: Carl: a callout marker line in a callout quote = sibling (chosen) vs nested; marker in a plain quote (not split, chosen).
+
+### ◐ Mermaid diagrams (Carl approved 2026-11-18; decisions.md "mermaid diagrams")
+- ✅ mermaid.go + heal.OpenMermaid + Stream plainFence; dep mermaid-ascii (pseudo-version of tag 1.6.2); goldens mermaid_*; tests mermaid_test.go.
+- **next**: Carl review (default on vs opt-in; top level only).
+- **risks**: mermaid-ascii fmt.Printf to stdout on a no-path edge; logrus debug if the host sets the global level; 100-line body cap
+  is a guess from 3 sizes; `` ```x `` after a closer reopens (diagram → code, can shrink); dep pulls gookit/color, logrus, runewidth.
+- **blocking decisions**: Carl: default on (chosen) or opt-in. Assumed: classDef colours dropped in every style; fences in
+  lists/quotes/form bodies and titled fences stay code; no ASCII option.
+- **optional extensions**: diagrams in form bodies; wide diagrams through WideBlocks (pane cut); classDef colours mapped to the theme.
 
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.

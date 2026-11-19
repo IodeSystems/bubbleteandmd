@@ -487,3 +487,22 @@ func TestNoShrinkRules(t *testing.T) {
 		pair{"x\n\n</di", "x\n\n"})
 	same(t, "keeps a whole line or other text", "x\n\n``\n", "x\n\n2x", "<details>", "x\n\n`` y")
 }
+
+// TestOpenMermaid: a ```mermaid fence that Close closes gets OpenMermaid in
+// its info string, so the renderer draws it as code until its own closer
+// arrives. Only at column 0 outside a blockquote, info `mermaid` alone.
+func TestOpenMermaid(t *testing.T) {
+	run(t, "marks an open mermaid fence",
+		pair{"```mermaid\ngraph TD\nA --> B", "```mermaid streaming\ngraph TD\nA --> B\n```"},
+		pair{"Intro\n\n```mermaid\nA\n``", "Intro\n\n```mermaid streaming\nA\n```"},
+		pair{"```mermaid", "```mermaid streaming\n```"},
+		pair{"~~~~mermaid  \nA\n", "~~~~mermaid   streaming\nA\n~~~~"})
+	run(t, "leaves other fences",
+		pair{"```mermaid\nA\n```", "```mermaid\nA\n```"},
+		pair{"```mermaid\nA\n```\n\nText", "```mermaid\nA\n```\n\nText"},
+		pair{"```mermaid title=\"x\"\nA", "```mermaid title=\"x\"\nA\n```"},
+		pair{"```mermaidx\nA", "```mermaidx\nA\n```"},
+		pair{" ```mermaid\nA", " ```mermaid\nA\n ```"},
+		pair{"> ```mermaid\n> A", "> ```mermaid\n> A\n> ```"},
+		pair{"- a\n\n  ```mermaid\n  A", "- a\n\n  ```mermaid\n  A\n  ```"})
+}

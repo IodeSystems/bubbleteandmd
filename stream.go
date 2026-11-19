@@ -487,7 +487,8 @@ func (s *Stream) plainFence(tail string) bool {
 	if m == nil || (m[1][0] == '`' && strings.Contains(m[2], "`")) {
 		return false
 	}
-	if _, ok := s.r.(*DirectiveRenderer); !ok {
+	dr, ok := s.r.(*DirectiveRenderer)
+	if !ok {
 		return true
 	}
 	if line != s.plainOpen {
@@ -495,7 +496,10 @@ func (s *Stream) plainFence(tail string) bool {
 		// A diff fence draws line by line (diff.go), not through glamour:
 		// its whole render is the cheap one.
 		_, diff := diffFence(line + "\n")
-		s.plainOpen, s.plain = line, !form && !diff
+		// A closed mermaid fence draws as one diagram (mermaid.go), not in
+		// chunks; an open one has heal.OpenMermaid in its info string.
+		_, merm := mermaidFence(line + "\n" + m[1] + "\n")
+		s.plainOpen, s.plain = line, !form && !diff && !(merm && !dr.noMermaid)
 	}
 	return s.plain
 }

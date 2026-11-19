@@ -10,6 +10,8 @@ type fence struct {
 	indent    string // the opener's leading spaces, after its quote prefix
 	quote     string // the opener's quote prefix as written (`> `), "" outside a blockquote
 	depth     int    // the number of `>` in quote
+	info      string // the opener's info string, after the fence run
+	start     int    // offset of the opener's line
 	bodyStart int
 }
 
@@ -94,6 +96,7 @@ func step(open *fence, line string, lineEnd, textLength int) *fence {
 		indent:    inner[:len(inner)-len(strings.TrimLeft(inner, " "))],
 		quote:     line[:len(line)-len(inner)],
 		depth:     depth,
+		info:      rest,
 		bodyStart: min(lineEnd, textLength),
 	}
 }
@@ -130,6 +133,9 @@ func scanFences(text string) (open *fence, after int) {
 // stepAt is step, and moves after past a fence that the line ends.
 func stepAt(open *fence, after int, line string, lineStart, lineEnd, textLength int) (*fence, int) {
 	next := step(open, line, lineEnd, textLength)
+	if next != nil && next != open {
+		next.start = lineStart
+	}
 	if open != nil && next != open {
 		if depth, _ := unquote(line, open.depth); depth == open.depth {
 			after = min(lineEnd, textLength) // the closing line

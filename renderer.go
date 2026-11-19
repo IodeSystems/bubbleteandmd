@@ -44,6 +44,8 @@ type DirectiveRenderer struct {
 	nat   *tablestream.Natural
 	// diff: escape table and memos of diff fences (diff.go).
 	diff diffState
+	// noMermaid: mermaid fences draw as code (Mermaid(false); mermaid.go).
+	noMermaid bool
 }
 
 // target is one glamour renderer and the frame its directive pieces get.
@@ -156,6 +158,9 @@ type parsed struct {
 	// diff: an untitled diff fence (diff.go); body is its code.
 	diff bool
 	body string
+	// mermaid: a closed top-level mermaid fence (mermaid.go); body is its
+	// code.
+	mermaid bool
 }
 
 // piece is a rendered piece and the marks in it, lines counted from its
@@ -187,10 +192,16 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 			ps[i].body, ps[i].diff = diffFence(src)
 		}
 		if !ok && !math && !ps[i].diff && t == &r.outer {
+			if !r.noMermaid {
+				var body string
+				if body, ps[i].mermaid = mermaidFence(src); ps[i].mermaid {
+					ps[i].body = body
+				}
+			}
 			ps[i].wide = r.wideWidth(src)
 		}
 		// src != b.Source: a rewrite (inline math) that md as written lacks.
-		if ok || math || ps[i].wide > 0 || ps[i].diff || src != b.Source {
+		if ok || math || ps[i].wide > 0 || ps[i].diff || ps[i].mermaid || src != b.Source {
 			plain = false
 		}
 	}
@@ -201,6 +212,15 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 	var pieces []piece
 	for i, p := range ps {
 		var err error
+		if p.mermaid {
+			var drawn bool
+			if pieces, drawn, err = r.mermaidPiece(t, pieces, p.src, p.body, first && i == 0); err != nil {
+				return "", nil, err
+			}
+			if drawn {
+				continue
+			}
+		}
 		if p.diff {
 			pieces, err = r.diffPiece(t, pieces, p.src, p.body, first && i == 0)
 		} else if p.wide > 0 {
