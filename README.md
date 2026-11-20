@@ -29,7 +29,9 @@ open code fence, a link without its `)`) shows raw until it closes.
    code fences, GFM task lists. One form beyond it (Carl 2026-11-18): a
    marker line inside a form's content (`[!PROS]` in a tab panel, `>
    [!CONS]` under a `> [!PROS]` list) starts that form too
-   (docs/decisions.md, "marker lines inside content"). Drawn with lipgloss. Math shows
+   (docs/decisions.md, "marker lines inside content"). As in flowdown,
+   forms nested in a plain quote draw too, behind the quote's rail.
+   Drawn with lipgloss. Math shows
    as code. A closed top-level ```` ```mermaid ```` fence (flowchart, sequence,
    ER) draws as a diagram (mermaid-ascii); while it streams, and when it
    cannot draw (error, too wide, other type), it shows as code. ```` ```diff ```` / ```` ```patch ```` fences: added and

@@ -135,6 +135,9 @@ type scope struct {
 	// base is the document offset of the rendered text, top level only.
 	base int
 	st   *directive.State
+	// quote: the content of a plain quote (directive.Quote), not a form
+	// body: marker lines in it stay text (no BodyForms).
+	quote bool
 }
 
 // key is the FormID.Key of a form at byte rel of the rendered text.
@@ -178,7 +181,7 @@ func (r *DirectiveRenderer) render(t *target, md string, sc scope) (string, []di
 	// A form body is recursive content: its marker lines open forms
 	// (directive.BodyForms); offsets map back through bodyShifts.
 	var bodyShifts []directive.MathShift
-	if t != &r.outer {
+	if t != &r.outer && !sc.quote {
 		body, bodyShifts = directive.BodyForms(body)
 	}
 	bs := blocks.Split(body)
@@ -277,6 +280,12 @@ func (r *DirectiveRenderer) block(t *target, pieces []piece, p parsed, at int, b
 			return nil, err
 		}
 		if len(lines) > 0 {
+			// glamour opens a quote that comes first with a blank line too:
+			// a plain quote drawn as KindQuote keeps it (no move when it
+			// becomes one).
+			if first && d.Kind == directive.KindQuote {
+				first = false
+			}
 			if !first {
 				// Frame's leading blank line
 				for i := range marks {
@@ -299,6 +308,9 @@ func (r *DirectiveRenderer) form(d directive.Directive, w int, sc scope, rel int
 		out, _, err := r.inner(md, w, scope{})
 		return out, err
 	}, Diff: r.diffTitled}
+	c.Quote = func(md string, w int, _ string) (string, []directive.Mark, error) {
+		return r.inner(md, w, scope{quote: true})
+	}
 	if !sc.on {
 		lines, _, err := directive.Render(d, c)
 		return lines, nil, err
@@ -306,6 +318,9 @@ func (r *DirectiveRenderer) form(d directive.Directive, w int, sc scope, rel int
 	c.Key, c.State = sc.key(rel), sc.st
 	c.Body = func(md string, w int, slot string) (string, []directive.Mark, error) {
 		return r.inner(md, w, scope{on: true, parent: c.Key + "/" + slot, st: sc.st})
+	}
+	c.Quote = func(md string, w int, slot string) (string, []directive.Mark, error) {
+		return r.inner(md, w, scope{on: true, parent: c.Key + "/" + slot, st: sc.st, quote: true})
 	}
 	return directive.Render(d, c)
 }

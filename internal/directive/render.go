@@ -22,6 +22,10 @@ type Ctx struct {
 	// their marks come back, lines counted in the returned text. Nil: Inner
 	// is used, the body's forms draw as streamed and give no marks.
 	Body func(md string, width int, slot string) (string, []Mark, error)
+	// Quote is Body for a plain quote's content (Directive.Quote, slot
+	// "q"): marker lines in it stay text, as they do in a quote written at
+	// top level. Nil: Body (or Inner) is used.
+	Quote func(md string, width int, slot string) (string, []Mark, error)
 	// State is the document's form state; nil draws every form as streamed.
 	State *State
 	// Key is this form's FormID.Key.
@@ -72,6 +76,8 @@ func Render(d Directive, c Ctx) (lines []string, marks []Mark, err error) {
 		lines, marks, err = renderTree(d, c)
 	case KindCodeTitle:
 		lines, err = renderCodeTitle(d, c)
+	case KindQuote:
+		lines, marks, err = renderQuote(d, c)
 	default:
 		return nil, nil, fmt.Errorf("directive: no renderer for kind %v", d.Kind)
 	}

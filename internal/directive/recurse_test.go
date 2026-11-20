@@ -102,3 +102,30 @@ func TestMarkerLinesParse(t *testing.T) {
 		}
 	}
 }
+
+// TestQuoteHoldsForm: a plain quote is KindQuote when a quote in it, at any
+// depth through quotes, opens with a known marker (flowdown shapes every
+// quote); else it stays the quote it was written as.
+func TestQuoteHoldsForm(t *testing.T) {
+	for _, c := range []struct {
+		name, in string
+		want     Kind
+	}{
+		{"pros cons after", "> #### Option B\n> > [!PROS]\n> - a\n>\n> > [!CONS]\n> - b\n", KindQuote},
+		{"two levels", "> text\n>\n> > more\n> >\n> > > [!NOTE]\n> > > x\n", KindQuote},
+		{"marker only, no list", "> text\n>\n> > [!PROS]\n", KindQuote},
+		{"plain", "> text\n>\n> > more\n", KindNone},
+		{"marker line in plain quote", "> text\n> [!PROS]\n> - a\n", KindNone},
+		{"unknown marker", "> text\n>\n> > [!FOO]\n> > x\n", KindNone},
+		{"quote in a list item", "> - item\n>\n>   > [!NOTE]\n>   > x\n", KindNone},
+		{"form quote", "> [!NOTE]\n> > [!TIP]\n> > x\n", KindCallout},
+	} {
+		if d, _ := Parse(c.in); d.Kind != c.want {
+			t.Errorf("%s: kind %v, want %v", c.name, d.Kind, c.want)
+		}
+	}
+	d, _ := Parse("> #### Option B\n> > [!PROS]\n> - a\n")
+	if d.Quote == nil || d.Quote.Body != "#### Option B\n> [!PROS]\n- a" {
+		t.Errorf("body %+v", d.Quote)
+	}
+}

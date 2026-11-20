@@ -74,8 +74,35 @@ func (d *doc) form(i int, pair bool) (Directive, bool) {
 		if a, ok := inner.attribution(); ok {
 			return Directive{Kind: KindAttribution, Start: sp.from, End: sp.to, Attribution: a}, true
 		}
+		if inner.holdsForm(inner.root) {
+			return Directive{Kind: KindQuote, Start: sp.from, End: sp.to,
+				Quote: &Quote{Body: trimBody(inner.s)}}, true
+		}
 	}
 	return Directive{}, false
+}
+
+// holdsForm reports whether a quote among n's children, or among theirs
+// through quotes, opens with the marker of a known form: flowdown shapes
+// every quote (core/remark-answer-blocks.ts:199-206), so a plain quote
+// draws as a quote around its content rendered again (KindQuote). Lists are
+// not walked: an item's quotes stay glamour's.
+func (d *doc) holdsForm(n ast.Node) bool {
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		if _, ok := c.(*ast.Blockquote); !ok {
+			continue
+		}
+		if c.FirstChild() != nil {
+			if mk, ok := d.marker(c.FirstChild()); ok &&
+				(slices.Contains(CalloutKinds, mk.kind) || slices.Contains(ContainerKinds, mk.kind)) {
+				return true
+			}
+		}
+		if d.holdsForm(c) {
+			return true
+		}
+	}
+	return false
 }
 
 // marker is a `[!KIND] title` line opening a quote's first paragraph.

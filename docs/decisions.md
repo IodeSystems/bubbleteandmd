@@ -759,3 +759,40 @@
     cases with another seed passed once), TestShowcaseNoShrink += 2 stats
     docs by rune; goldens testdata/golden/docs/stats_* (new; sample
     testdata/directives/stats.md).
+
+- 2026-11-20 (flowdown v0.7.1 port): forms in plain quotes. flowdown's
+  dialectPass visits every node (unist visit, depth-first) and calls
+  applyContainer, then applyCallout/applyAttribution, on each blockquote
+  it meets (core/remark-answer-blocks.ts:199-206), with that quote's own
+  parent: a quote nested in a plain quote, a list item or a form is read
+  as at top level, and a marker-only quote there takes the next sibling
+  in its parent (one list; tabs: the heading run;
+  core/remark-answer-containers.ts:263-286, 316-322); a pros next to a
+  cons pairs (:336-348). The Rust crate agrees (crates/flowdown/src/
+  forms.rs marker: the list after the quote in its parent is moved in).
+  Ours had forms at top level and in form bodies (B2) only: in a plain
+  quote `> > [!PROS]` printed as `│ [!PROS]`. Now: a top-level quote with
+  no marker and no source line, holding a quote that opens with a known
+  marker (directly or through quotes, at any depth; list items not
+  walked), is KindQuote (internal/directive forms.go holdsForm). Its
+  content (one level of `>` off) renders again through the renderer at
+  width − rail, behind Theme.Rail (the quote token in the document's
+  colour, as glamour's margin writer draws it), leading and trailing blank
+  lines off; a KindQuote that comes first keeps glamour's leading blank
+  line, so the switch from glamour's drawing does not move lines. Its
+  content is not a form body: no BodyForms (scope.quote, Ctx.Quote), so
+  "marker lines inside content" stays as decided (a marker line in a
+  plain quote is text). Keys: slot "q" (ids.go). Not ported (flowdown has
+  them): forms in quotes inside list items; a nested attribution, titled
+  fence or tree in a plain quote (KindQuote is chosen by a nested marker
+  only). heal (not flowdown, whose rules read one `>` level): a partial
+  callout marker and a bare form marker are held back at any quote depth
+  (`> > [!PR`, `> > [!PROS]`), and a nested marker over a held-back `>`
+  line too (`> > [!CONS]\n> -`), as at top level. Streaming: no shrink
+  (TestQuoteNestedNoShrink, token and rune, dark/notty w40/w79); the one
+  change to lines above while streaming is the pros column going side by
+  side when the cons's first item comes, as at top level. Spec corpus:
+  spec/forms has no nested-quote example; specForm walks a KindQuote's
+  content at the same depth, as test/forms.ts does. Tests: directive
+  TestQuoteHoldsForm, quotenested_test.go, testdata/directives/
+  quotenested.md (new goldens docs/quotenested_{dark,light,notty}_{36,76}).

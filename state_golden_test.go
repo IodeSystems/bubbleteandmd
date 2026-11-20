@@ -155,6 +155,11 @@ func formsIn(block string, at int, bodyShifts []directive.MathShift, parent stri
 			for i, s := range d.Steps.Items {
 				body(s.Body, "s"+strconv.Itoa(i))
 			}
+		case d.Quote != nil:
+			// Not a form body: no BodyForms.
+			for _, b := range blocks.Split(d.Quote.Body) {
+				formsIn(b.Source, b.Offset, nil, key+"/q", out)
+			}
 		case d.Verdict != nil:
 			for i, it := range d.Verdict.Pros {
 				body(it.Body, "p"+strconv.Itoa(i))

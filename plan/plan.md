@@ -263,6 +263,15 @@ dun-bf: `[!PROS]`/`[!CONS]` lines in a `> [!TABS]` panel printed as text.
   label column min 10 cells (not in the brief).
 - **optional extensions**: value in th.Heading colour (strip glamour's text colour inside the value).
 
+### ◐ Forms in plain quotes + split tabs (coordinator brief 2026-11-20)
+- ✅ forms in plain quotes (flowdown port; decisions.md "forms in plain quotes"): KindQuote, heal holds nested markers.
+  Goldens: docs/quotenested_* (6, new).
+- ◻ split tabs joined (deviation, Carl 2026-11-20): second commit.
+- **next**: Carl review, merge.
+- **risks**: forms in quotes inside list items and nested attributions/titled fences not ported; heal hold at any depth is new.
+- **blocking decisions**: none. Assumed: KindQuote chosen by a nested marker only.
+- **optional extensions**: list items' quotes.
+
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
 - Assumption: benchmark code lives in the repo (`bench/` package, `_test.go`), committed as `test:`/`chore:`.

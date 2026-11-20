@@ -95,6 +95,11 @@ func bodies(d Directive, id FormID) []FormID {
 		for i, s := range d.Steps.Items {
 			out = append(out, body(s.Body, id, "s"+strconv.Itoa(i))...)
 		}
+	case d.Quote != nil:
+		// Not a form body: no BodyForms (Ctx.Quote).
+		for _, b := range blocks.Split(d.Quote.Body) {
+			out = append(out, idsIn(b.Source, b.Offset, nil, id.Key+"/q", id.Offset)...)
+		}
 	case d.Verdict != nil:
 		for i, it := range d.Verdict.Pros {
 			out = append(out, body(it.Body, id, "p"+strconv.Itoa(i))...)

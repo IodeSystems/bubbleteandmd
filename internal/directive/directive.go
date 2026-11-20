@@ -23,9 +23,10 @@ const (
 	KindAttribution
 	KindTree
 	KindCodeTitle
+	KindQuote
 )
 
-var kindNames = [...]string{"none", "callout", "steps", "tabs", "stats", "verdict", "details", "sources", "attribution", "tree", "code-title"}
+var kindNames = [...]string{"none", "callout", "steps", "tabs", "stats", "verdict", "details", "sources", "attribution", "tree", "code-title", "quote"}
 
 func (k Kind) String() string {
 	if k < 0 || int(k) >= len(kindNames) {
@@ -64,6 +65,7 @@ type Directive struct {
 	Attribution *Attribution
 	Tree        *Tree
 	CodeTitle   *CodeTitle
+	Quote       *Quote
 }
 
 // Callout is `> [!WARNING] Title` over a quoted body.
@@ -150,6 +152,15 @@ type Source struct {
 type Attribution struct {
 	Quote  string // Markdown
 	Source string // inline Markdown after the dash
+}
+
+// Quote is a plain quote (no marker, no source line) that holds a quote
+// opening with a marker, at any depth through quotes: flowdown reads forms
+// in every quote (core/remark-answer-blocks.ts:199-206), so it draws as a
+// quote around its content rendered again. Marker lines in Body stay text
+// (no BodyForms): it is not a form body.
+type Quote struct {
+	Body string // Markdown, one level of quote markers off
 }
 
 // Tree is a ```tree fence.

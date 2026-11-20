@@ -23,8 +23,11 @@ var (
 	displayFormula = regexp.MustCompile(`\$\$[\s\S]*?\$\$`)
 	tableRowStart  = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}\|`)
 	tableDelimCell = regexp.MustCompile(`^:?-{3,}:?$`)
-	calloutPartial = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?(?:\[(?:!\w*)?)?$`)
-	quoteLine      = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?([^\r\n\x{2028}\x{2029}]*)$`)
+	// Not flowdown: calloutPartial and quoteLine take any depth of quote
+	// prefixes (`> > [!PR`, `> > [!PROS]`), as forms open in every quote.
+	calloutPartial = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?(?:(?:[ \t]{0,3}>[ \t]?)*\[(?:!\w*)?)?$`)
+	quoteLine      = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?(?:[ \t]{0,3}>[ \t]?)*([^\r\n\x{2028}\x{2029}]*)$`)
+	nestedQuote    = regexp.MustCompile(`^[` + jsSpaceClass + `]{0,3}>[ \t]?[ \t]{0,3}>`)
 	markerHead     = regexp.MustCompile(`^\[!([A-Za-z]+)\]`)
 	partialOpener  = regexp.MustCompile("^(?: {0,3}>[ \t]?)* {0,3}(?:`{1,2}|~{1,2}|[0-9]{1,9}|</?[A-Za-z][A-Za-z0-9-]*|</?)$")
 	// bareBlockMarker is flowdown v0.7.1's BARE_BLOCK_MARKER.
@@ -100,7 +103,13 @@ func closeProse(text string, fenceEnd int) string {
 	if d := dropTrailingPartialTableRow(text); d != text {
 		return d
 	}
+	// A nested form marker the hidden line was under is hidden too (not
+	// flowdown): `> > [!CONS]\n>` (from `> > [!CONS]\n> -`) is held back to
+	// before the marker, as `> [!CONS]\n-` is at top level.
 	if d := dropTrailingPartialCalloutMarker(text); d != text {
+		if nestedQuote.MatchString(d[strings.LastIndexByte(d, '\n')+1:]) {
+			return dropTrailingBareFormMarker(d)
+		}
 		return d
 	}
 	if d := dropTrailingBareFormMarker(text); d != text {

@@ -172,6 +172,11 @@ func TestClose(t *testing.T) {
 	run(t, "a marker in a quote heals to its quote prefix",
 		pair{"> [!TABS]\n> #", "> [!TABS]"}, pair{"> a\n> -", "> a"},
 		pair{"> > a\n> > ##", "> > a\n"}, pair{"- a\n  -", "- a\n"})
+	// Not flowdown: forms open in every quote, so nested markers are held
+	// back as top-level ones are.
+	run(t, "a nested marker is held back",
+		pair{"> h\n> > [!PR", "> h"}, pair{"> h\n> > [!PROS]", "> h\n"},
+		pair{"> h\n> > [!PROS]\n> -", "> h\n"}, pair{"> h\n> > [!NOTE]", "> h\n> > [!NOTE]"})
 	t.Run("a marker held back leaves the frame before it, form marker hidden", func(t *testing.T) {
 		// TestShowcaseNoShrink: `> [!STEPS]\n` hides its bare form marker, and drawn in the
 		// frames after it, the marker was taller than the form with its first item.

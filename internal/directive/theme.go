@@ -6,6 +6,7 @@ import (
 
 	"charm.land/glamour/v2/ansi"
 	"charm.land/lipgloss/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 )
 
 // Theme is what the form renderers draw with. It comes from a glamour style,
@@ -27,6 +28,9 @@ type Theme struct {
 
 	// Quote is the blockquote indent token, e.g. "│ " or "| ". Never empty.
 	Quote string
+	// Rail is Quote as glamour draws a top-level quote's rail: in the
+	// document's colour (ansi/margin.go: the parent block's style).
+	Rail string
 
 	// Callout is keyed by lower-case callout kind (CalloutKinds). Each style is
 	// the callout hue, bold.
@@ -78,6 +82,10 @@ func ThemeFrom(s ansi.StyleConfig, plain bool) Theme {
 		th.Quote = *s.BlockQuote.IndentToken
 	}
 	th.Frame = StyleOf(s, plain)
+	th.Rail = th.Quote
+	if !plain && s.Document.Color != nil {
+		th.Rail = xansi.Style{}.ForegroundColor(lipgloss.Color(*s.Document.Color)).Styled(th.Quote)
+	}
 	if plain {
 		for k := range calloutHue {
 			th.Callout[k] = lipgloss.NewStyle()

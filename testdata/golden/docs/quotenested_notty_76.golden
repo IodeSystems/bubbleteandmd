@@ -1,0 +1,22 @@
+
+  # Forms in plain quotes                                                 
+                                                                          
+  | #### Option B                                                         
+  |                                                                       
+  | + Pros                               − Cons                           
+  | • fits the current layout            • reverses an earlier change     
+                                                                          
+  A plain quote with a quoted note and steps, one level deeper:           
+                                                                          
+  | Some context first.                                                   
+  |                                                                       
+  | | NOTE Before you start                                               
+  | |                                                                     
+  | | Read the whole list.                                                
+  |                                                                       
+  | | 1 ● Open                                                            
+  | |   │ the file                                                        
+  | |   │                                                                 
+  | | 2 ● Save                                                            
+  | |   │ it                                                              
+

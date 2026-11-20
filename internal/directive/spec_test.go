@@ -74,9 +74,14 @@ func specLine(depth int, name, title string, count int) string {
 }
 
 // specBody prints the forms of md at depth: top level as written, a body
-// after BodyForms, as the renderer reads each.
+// after BodyForms (not a plain quote's content: quoted), as the renderer
+// reads each.
 func specBody(md string, depth int, out *[]string) {
-	if depth > 0 {
+	specBodyIn(md, depth, depth > 0, out)
+}
+
+func specBodyIn(md string, depth int, forms bool, out *[]string) {
+	if forms {
 		md, _ = BodyForms(md)
 	}
 	for _, b := range blocks.Split(md) {
@@ -141,6 +146,10 @@ func specForm(d Directive, depth int, out *[]string) {
 				specBody(p.Body, depth+2, out)
 			}
 		}
+	case d.Quote != nil:
+		// A plain quote is no form: test/forms.ts walks its children at
+		// the same depth.
+		specBodyIn(d.Quote.Body, depth, false, out)
 	}
 	// Attributions, trees and titled code fences are no forms of the spec.
 	in(d.After)

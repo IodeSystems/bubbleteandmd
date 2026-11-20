@@ -196,3 +196,24 @@ func renderAttribution(d Directive, c Ctx) ([]string, error) {
 	}
 	return append(out, calloutPrefix(pq, src, c.Width)...), nil
 }
+
+// renderQuote draws a plain quote that holds forms: its content rendered
+// again (forms drawn), each line behind the quote's rail, as glamour draws
+// a quote's lines.
+func renderQuote(d Directive, c Ctx) ([]string, []Mark, error) {
+	q := d.Quote
+	if q == nil {
+		return nil, nil, errNotImplemented
+	}
+	inner := max(c.Width-xansi.StringWidth(c.Theme.Quote), 1)
+	if c.Quote != nil {
+		c.Body = c.Quote
+	}
+	// Without its leading and trailing blank lines (tabsInner), as glamour
+	// draws a quote whose first block is a heading.
+	lines, marks, err := tabsInner(c, q.Body, inner, "q")
+	if err != nil {
+		return nil, nil, err
+	}
+	return calloutPrefix(c.Theme.Rail, lines, c.Width), marks, nil
+}
