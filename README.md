@@ -30,7 +30,10 @@ open code fence, a link without its `)`) shows raw until it closes.
    marker line inside a form's content (`[!PROS]` in a tab panel, `>
    [!CONS]` under a `> [!PROS]` list) starts that form too
    (docs/decisions.md, "marker lines inside content"). As in flowdown,
-   forms nested in a plain quote draw too, behind the quote's rail.
+   forms nested in a plain quote draw too, behind the quote's rail. A
+   second form beyond flowdown (Carl 2026-11-20): quotes that open with a
+   heading of the tabs' depth, right after a quoted `> [!TABS]`, are more
+   tabs (docs/decisions.md, "split tabs joined").
    Drawn with lipgloss. Math shows
    as code. A closed top-level ```` ```mermaid ```` fence (flowchart, sequence,
    ER) draws as a diagram (mermaid-ascii); while it streams, and when it

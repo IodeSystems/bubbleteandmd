@@ -176,7 +176,9 @@ func TestClose(t *testing.T) {
 	// back as top-level ones are.
 	run(t, "a nested marker is held back",
 		pair{"> h\n> > [!PR", "> h"}, pair{"> h\n> > [!PROS]", "> h\n"},
-		pair{"> h\n> > [!PROS]\n> -", "> h\n"}, pair{"> h\n> > [!NOTE]", "> h\n> > [!NOTE]"})
+		pair{"> h\n> > [!PROS]\n> -", "> h\n"}, pair{"> h\n> > [!NOTE]", "> h\n> > [!NOTE]"},
+		// A marker line under another quote line (marker lines inside content).
+		pair{"> - a\n> [!CONS]\n> -", "> - a\n"})
 	t.Run("a marker held back leaves the frame before it, form marker hidden", func(t *testing.T) {
 		// TestShowcaseNoShrink: `> [!STEPS]\n` hides its bare form marker, and drawn in the
 		// frames after it, the marker was taller than the form with its first item.

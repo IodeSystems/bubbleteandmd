@@ -103,11 +103,19 @@ func closeProse(text string, fenceEnd int) string {
 	if d := dropTrailingPartialTableRow(text); d != text {
 		return d
 	}
-	// A nested form marker the hidden line was under is hidden too (not
-	// flowdown): `> > [!CONS]\n>` (from `> > [!CONS]\n> -`) is held back to
-	// before the marker, as `> [!CONS]\n-` is at top level.
+	// A form marker the hidden line was under is hidden too (not flowdown)
+	// when it does not open the text's first quote line: nested (`> >
+	// [!CONS]\n>`, from `> > [!CONS]\n> -`) or a marker line under another
+	// quote line (`> - a\n> [!CONS]\n>`). Held back to before the marker,
+	// as `> [!CONS]\n-` is at top level. A quote's own opener stays
+	// (`> [!TABS]\n> #` is `> [!TABS]`).
 	if d := dropTrailingPartialCalloutMarker(text); d != text {
-		if nestedQuote.MatchString(d[strings.LastIndexByte(d, '\n')+1:]) {
+		nl := strings.LastIndexByte(d, '\n')
+		above := ""
+		if nl >= 0 {
+			above = d[strings.LastIndexByte(d[:nl], '\n')+1 : nl]
+		}
+		if nestedQuote.MatchString(d[nl+1:]) || quoteLine.MatchString(above) {
 			return dropTrailingBareFormMarker(d)
 		}
 		return d

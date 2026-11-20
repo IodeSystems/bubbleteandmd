@@ -266,10 +266,12 @@ dun-bf: `[!PROS]`/`[!CONS]` lines in a `> [!TABS]` panel printed as text.
 ### ◐ Forms in plain quotes + split tabs (coordinator brief 2026-11-20)
 - ✅ forms in plain quotes (flowdown port; decisions.md "forms in plain quotes"): KindQuote, heal holds nested markers.
   Goldens: docs/quotenested_* (6, new).
-- ◻ split tabs joined (deviation, Carl 2026-11-20): second commit.
+- ✅ split tabs joined (deviation, Carl 2026-11-20; decisions.md "split tabs joined"): joinTabs + blocks joinedTabs; no new
+  hold (heal already holds `>`/`> ####`). Goldens: docs/tabsjoined_* (6, new).
 - **next**: Carl review, merge.
 - **risks**: forms in quotes inside list items and nested attributions/titled fences not ported; heal hold at any depth is new.
-- **blocking decisions**: none. Assumed: KindQuote chosen by a nested marker only.
+- **blocking decisions**: none. Assumed: KindQuote chosen by a nested marker only; a joined quote with two same-depth
+  headings is two tabs.
 - **optional extensions**: list items' quotes.
 
 ## Decisions / assumptions

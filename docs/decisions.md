@@ -796,3 +796,40 @@
   content at the same depth, as test/forms.ts does. Tests: directive
   TestQuoteHoldsForm, quotenested_test.go, testdata/directives/
   quotenested.md (new goldens docs/quotenested_{dark,light,notty}_{36,76}).
+
+- 2026-11-20 (Carl: "be a better-effort render than flowdown here"):
+  split tabs joined (deviation, Carl 2026-11-20). Case: a model writes
+  `> [!TABS]` with its first tab quoted, then each next tab as its own
+  quote (`> #### Option B` …) after a blank line; flowdown reads one tab
+  and plain quotes. Rule: after a top-level `[!TABS]` quote that holds its
+  content (the first block after the marker a heading), each following
+  top-level quote, with only blank lines between, whose first block is a
+  heading of the first tab heading's depth holds more tabs: its content is
+  read as a quoted tabs' content is (each heading of that depth opens a
+  tab; assumed, the brief said "the whole quote is the panel", a second
+  same-depth heading in it is a tab too). Panels are form bodies, so
+  nested forms and marker lines read as in any panel. The first block that
+  is not such a quote ends the run; a quote opening with another depth or
+  with no heading stays a quote. The marker-only form (unquoted sections,
+  `---` parting) is unchanged. Code: internal/directive forms.go joinTabs;
+  internal/blocks group joinedTabs keeps the run one block (Splitter's
+  last-two reopen covers a quote that joins later: the tabs block is the
+  one before it). Streaming, Carl's rule (2026-11-20): "during streaming,
+  we can afford a SINGLE line of jank — we can overwrite it, but never
+  retract it." No new hold was needed: after the tabs, `\n\n>`, `> #`
+  and `> ####` are already held back by heal (bare `>` line, bare
+  heading marker), so the next frame that shows the quote is `> #### O`,
+  read at once as a tab; the quote is never drawn as a plain quote first.
+  Measured (token prefixes, notty w79, three options): the joined and the
+  one-quote tabs frames change the same lines: the label line above the
+  panels (`Option A · Optio`, overwritten in place as a label is typed,
+  as for any tabs) and the pros line when its cons's first item sets the
+  sides side by side; none shrinks. heal (not flowdown): a marker line
+  under another quote line over a held-back `>` line is held back too
+  (`> - a\n> [!CONS]\n> -` is `> - a\n`), as at top level; that removed
+  the marker-line shrink (`[!CONS]` drawn, then the pair) for these
+  frames. Tests: tabsjoined_test.go (render byte-equal to the one-quote
+  tabs, streamed checkStream, no-shrink token and rune with the existing
+  knownShrink, one Doc stop), directive TestJoinTabs, blocks
+  TestSplitCases, heal TestClose; testdata/directives/tabsjoined.md (new
+  goldens docs/tabsjoined_{dark,light,notty}_{36,76}).

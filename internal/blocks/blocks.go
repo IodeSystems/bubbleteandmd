@@ -540,6 +540,25 @@ func group(text string, starts []int) []int {
 		}
 		return end
 	}
+	// joinedTabs is the piece after the quotes that join quoted tabs whose
+	// first content line is line, from piece from on (split tabs joined, a
+	// deviation, Carl 2026-11-20): each quote whose first line is a heading
+	// of the depth of the tabs' first heading is one more tab.
+	joinedTabs := func(from int, line string) int {
+		h := headingRe.FindStringSubmatch(quoteRe.FindStringSubmatch(line)[1])
+		end := from
+		for h != nil && end < count {
+			q := quoteRe.FindStringSubmatch(first(end))
+			if q == nil {
+				break
+			}
+			if n := headingRe.FindStringSubmatch(q[1]); n == nil || len(n[1]) != len(h[1]) {
+				break
+			}
+			end++
+		}
+		return end
+	}
 	// form returns the container form a piece holds a marker line for, and the
 	// piece after everything it governs. A list form takes the one list right
 	// after it; tabs take the sections from the heading after them up to a
@@ -573,6 +592,8 @@ func group(text string, starts []int) []int {
 				}
 			} else if kind == "tabs" && !quoteRe.MatchString(lines[i+1]) {
 				end = tabsEnd(piece, lines[i+1], piece+1)
+			} else if kind == "tabs" {
+				end = joinedTabs(piece+1, lines[i+1])
 			}
 			found, reach = kind, max(end, reach)
 		}

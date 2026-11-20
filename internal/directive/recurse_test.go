@@ -129,3 +129,33 @@ func TestQuoteHoldsForm(t *testing.T) {
 		t.Errorf("body %+v", d.Quote)
 	}
 }
+
+// TestJoinTabs: quotes after quoted tabs, each opening with a heading of
+// the first tab heading's depth, are more tabs (split tabs joined, Carl
+// 2026-11-20); any other quote, or a block between, ends them.
+func TestJoinTabs(t *testing.T) {
+	src := "> [!TABS]\n> #### A\n> one\n\n> #### B\n> two\n>\n> #### C\n> three\n\n> ### D\n> four\n"
+	d, ok := Parse(src)
+	if !ok || d.Tabs == nil {
+		t.Fatalf("%+v", d)
+	}
+	var labels []string
+	for _, p := range d.Tabs.Panels {
+		labels = append(labels, p.Label+"="+p.Body)
+	}
+	if got := strings.Join(labels, " "); got != "A=one B=two C=three" {
+		t.Errorf("panels %s", got)
+	}
+	if rest := src[d.End:]; !strings.HasPrefix(strings.TrimLeft(rest, "\n"), "> ### D") {
+		t.Errorf("end %q", rest)
+	}
+	for _, in := range []string{
+		"> [!TABS]\n#### A\none\n\n> #### B\n> two\n",
+		"> [!TABS]\n> #### A\n> one\n\ntext\n\n> #### B\n> two\n",
+		"> [!TABS]\n> #### A\n> one\n\n> two\n",
+	} {
+		if d, _ := Parse(in); d.Tabs == nil || len(d.Tabs.Panels) != 1 {
+			t.Errorf("%q: %+v", in, d.Tabs)
+		}
+	}
+}

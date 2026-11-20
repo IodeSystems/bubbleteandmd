@@ -48,6 +48,11 @@ func TestSplitCases(t *testing.T) {
 			[]string{"> [!TABS]\n#### A\nOne.\n\n---\n\n#### B\nTwo.\n\n---\n#### C\nThree.", "---", "After."}},
 		{"a rule before a deeper heading ends the tabs", "> [!TABS]\n### A\nOne.\n\n---\n\n#### B\nTwo.",
 			[]string{"> [!TABS]\n### A\nOne.", "---", "#### B\nTwo."}},
+		// split tabs joined (deviation, Carl 2026-11-20)
+		{"quotes with a same-depth heading join quoted tabs", "> [!TABS]\n> #### A\n> one\n\n> #### B\n> two\n\n> #### C\n> three\n\nAfter.",
+			[]string{"> [!TABS]\n> #### A\n> one\n\n> #### B\n> two\n\n> #### C\n> three", "After."}},
+		{"a quote with another heading depth ends joined tabs", "> [!TABS]\n> #### A\n> one\n\n> ### B\n> two",
+			[]string{"> [!TABS]\n> #### A\n> one", "> ### B\n> two"}},
 		{"pros sit with the cons after them", "> [!PROS]\n- a\n\n> [!CONS]\n- b\n\nAfter.",
 			[]string{"> [!PROS]\n- a\n\n> [!CONS]\n- b", "After."}},
 		{"footnotes keep the document whole", "A claim.[^1]\n\nMore text.\n\n[^1]: The source.",

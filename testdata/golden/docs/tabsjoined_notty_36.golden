@@ -1,0 +1,41 @@
+
+  # Split tabs                    
+                                  
+  Option A · Option B · Option C  
+                                  
+  ▸ Option A ─────────────────────
+  + Pros                          
+  • a                             
+                                  
+  − Cons                          
+  • b                             
+                                  
+  ▸ Option B ─────────────────────
+  + Pros                          
+  • c                             
+                                  
+  − Cons                          
+  • d                             
+                                  
+  ▸ Option C ─────────────────────
+  + Pros                          
+  • e                             
+                                  
+  − Cons                          
+  • f                             
+                                  
+  | ### A deeper quote stays a    
+  | quote                         
+                                  
+  After the tabs.                 
+                                  
+  First                           
+                                  
+  ▸ First ────────────────────────
+  one                             
+                                  
+  | Not a heading: a plain quote. 
+                                  
+  | #### Not joined: the plain    
+  | quote above ended the run     
+

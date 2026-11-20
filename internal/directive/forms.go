@@ -59,6 +59,9 @@ func (d *doc) form(i int, pair bool) (Directive, bool) {
 		}
 		if marked && mk.single && slices.Contains(ContainerKinds, mk.kind) {
 			if f, end, ok := d.container(i, mk, inner); ok {
+				if f.Kind == KindTabs && len(inner.top) > 1 {
+					end = d.joinTabs(f.Tabs, end, inner.top[1].node.(*ast.Heading).Level)
+				}
 				f.Start, f.End = sp.from, d.top[end-1].to
 				if pair {
 					f = d.pairUp(f, end)
@@ -216,6 +219,31 @@ func (d *doc) following(kind string, from int) []span {
 		}
 	}
 	return d.top[from:end]
+}
+
+// joinTabs adds to quoted tabs t the tabs of the quotes from top-level
+// index from on (split tabs joined, a deviation from flowdown, Carl
+// 2026-11-20): each quote whose first block is a heading of depth level
+// holds more tabs, read as a quoted tabs' content is. Returns the index of
+// the first node not taken.
+func (d *doc) joinTabs(t *Tabs, from, level int) int {
+	end := from
+	for ; end < len(d.top); end++ {
+		sp := d.top[end]
+		if _, ok := sp.node.(*ast.Blockquote); !ok {
+			break
+		}
+		inner := parseDoc(dequote(d.s[sp.from:sp.to]))
+		if len(inner.top) == 0 {
+			break
+		}
+		if h, ok := inner.top[0].node.(*ast.Heading); !ok || h.Level != level {
+			break
+		}
+		more, _ := inner.tabs(inner.top, false)
+		t.Panels = append(t.Panels, more.Panels...)
+	}
+	return end
 }
 
 // partsTabs reports whether the rule at top-level index i stands right
