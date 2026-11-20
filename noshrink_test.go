@@ -37,8 +37,16 @@ func TestShowcaseNoShrink(t *testing.T) {
 		// taller than the form with its first item (internal/heal).
 		{"steps", "> [!STEPS]\n1. **First 24 hours**\n   *Day 1*\n2. **Second day**\n"},
 		{"steps title", "> [!STEPS] The plan\n1. Install\n2. Run\n"},
+		// Stats switch between tiles and the list as items arrive.
+		{"stats short", "> [!STATS] Numbers\n- **3×** faster installs\n- **−40%** memory use across the whole fleet\n" +
+			"- **12** regions\n- **99.9%** uptime\n- **1,204** requests per second\n- **7** zones\n"},
 	}
-	byRune := map[string]bool{"showcase": true, "steps": true, "steps title": true}
+	sb, err := directiveFiles.ReadFile("testdata/directives/stats.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs = append(docs, doc{"stats", string(sb)})
+	byRune := map[string]bool{"showcase": true, "steps": true, "steps title": true, "stats short": true, "stats": true}
 	ps := []pattern{{"token", corpus.TokenPrefixes}, {"rune", runePrefixes}}
 	if testing.Short() {
 		delete(byRune, "showcase")

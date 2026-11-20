@@ -18,14 +18,10 @@
                                   
   Numbers                         
                                   
-  3×                              
-  faster installs                 
-                                  
-  −40%                            
-  memory use across the whole flee
-                                  
-  12                              
-  regions                         
+    3×  faster installs           
+  −40%  memory use across the     
+        whole fleet               
+    12  regions                   
                                   
   --------                        
                                   
@@ -38,6 +34,5 @@
                                   
     func main() {}                
                                   
-  1                               
-  one                             
+  1  one                          
 

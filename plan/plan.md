@@ -252,6 +252,17 @@ dun-bf: `[!PROS]`/`[!CONS]` lines in a `> [!TABS]` panel printed as text.
   lists/quotes/form bodies and titled fences stay code; no ASCII option.
 - **optional extensions**: diagrams in form bodies; wide diagrams through WideBlocks (pane cut); classDef colours mapped to the theme.
 
+### ◐ STATS list layout (dun report via Carl 2026-11-19; decisions.md "STATS list layout")
+- ✅ render_stats.go: tiles when every row holds ≥ 2, else list (value column right-aligned, 2 spaces, wrapped label) when
+  widest value ≤ 12 and label column ≥ 10; statTrim drops blank edge cells (code pad) ANSI-aware; no-shrink pick walks item frames.
+  Goldens: lists_* (single-tile stats → list; `1  one`), list_stats_{dark,light}_* (now tiles like notty), stats_* new.
+- **next**: Carl review; dun-bf bump once tagged.
+- **risks**: final layout can differ from the spec where the spec would shrink a frame (it is the taller one); frames move on a
+  layout switch; value ≥ width−2 not covered; value colour is glamour's text colour (bold only), unchanged.
+- **blocking decisions**: none. Assumed: values trimmed too (same pad issue); blank line after the title in the list layout (as tiles);
+  label column min 10 cells (not in the brief).
+- **optional extensions**: value in th.Heading colour (strip glamour's text colour inside the value).
+
 ## Decisions / assumptions
 - Carl 2026-11-10: D1 merge mismatched kinds into one block · D2 port all of heal.ts · D3 one root package, rest internal/ · D5 port generator to Go.
 - Assumption: benchmark code lives in the repo (`bench/` package, `_test.go`), committed as `test:`/`chore:`.

@@ -715,3 +715,47 @@
     heal TestOpenMermaid, goldens testdata/golden/docs/mermaid_* (new;
     sample testdata/directives/mermaid.md). No other golden changed:
     code.md's `graph TD; A-->B` is a parse error in mermaid-ascii, code.
+
+- 2026-11-19 (STATS list layout, dun report via Carl): a `[!STATS]` with
+  long labels drew one tile per row (value line, label line, blank): 9
+  rows for 3 stats. Rule (internal/directive/render_stats.go):
+  - Tiles as before when every row holds 2 tiles or more. When a row would
+    hold one tile, a list: one stat per line, the value right-aligned in a
+    column as wide as the widest value, 2 spaces, the label wrapped (glamour,
+    via listLines) under its own column. Value th.Heading, label th.Muted.
+    The list only when the widest value is ≤ 12 cells and the label column
+    is ≥ 10 cells; else stacked tiles as before. A one-item stats is a list
+    (`1  one`, was 2 lines). Why: a list is one line per stat and keeps a
+    long label whole (tiles cut it at the width).
+  - Labels and values lose blank cells (space, no-break space) at their
+    ends, per line, ANSI-aware (statTrim): glamour draws a code span as a
+    styled no-break space each side, so a label that starts with a code
+    span looked indented and copied as a space. The escapes before the
+    first cell are kept (less pairs over blank cells only), so a pill at
+    the edge keeps its colours; interior pills are as glamour draws them.
+    This also drops glamour's styled pad cells at a line end, which the
+    directive package's test Inner keeps: dark/light list_stats goldens
+    were one tile per row for that reason, now they match notty.
+  - No shrink while streaming, without memory of past frames: pick walks
+    the frames a stream shows (item k empty, item k whole) from the source.
+    Item k empty: the spec, unless shorter than the frame before; then the
+    other layout if that is not shorter. Item k whole: the layout of k
+    empty while the spec agrees; spec turned tiles → list: the list if it
+    was already as tall at k empty (heights only grow with the item), else
+    the taller of the two; any other turn: the taller. The fallback list
+    needs only a 1-cell label column (a value that grows past 12 cells
+    while the list is drawn keeps the list). So the final layout can
+    differ from the spec where the spec would have shrunk the frame (it is
+    then the taller one). Frames can still move (a layout switch, a wider
+    value column moves every label); they do not shrink. Not covered: a
+    value as wide as the width minus 2 (no list fits).
+  - Value style (checked): dark `ESC[1;38;5;39m` then glamour's text
+    colour `ESC[38;5;252m` inside, so bold in the text colour, not the
+    heading blue; light the same (27, then 234); notty no SGR. As before
+    this change (steps numbers draw the same way); not changed.
+  - Tests: TestStatsList (w80 3 lines, w40 hanging indent, no blank edge
+    cell, 3 styles), TestStatTrim, TestStatsStreamNoShrink (random shapes,
+    values rune by rune, labels word by word, dark/notty w24..80; 1500
+    cases with another seed passed once), TestShowcaseNoShrink += 2 stats
+    docs by rune; goldens testdata/golden/docs/stats_* (new; sample
+    testdata/directives/stats.md).
